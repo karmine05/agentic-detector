@@ -70,11 +70,8 @@ build/agentic_detector_windows.ext.exe       # amd64
 build/agentic_detector_windows_arm64.ext.exe
 ```
 
-Sign before distribution (osquery refuses world-writable / non-root-owned
-extensions unless `--allow_unsafe`):
-
-- macOS: `codesign -s "Developer ID Application: <ORG>" --options runtime build/agentic_detector_macos.ext` then `notarytool` + `stapler`.
-- Windows: `signtool sign /fd SHA256 /a build/agentic_detector_windows.ext.exe`.
+Sign the binaries before distributing or running a downloaded copy — see
+[Signing & trust](#signing--trust) below.
 
 ## Download a prebuilt binary
 
@@ -108,6 +105,78 @@ osqueryi --allow_unsafe --extension "$PWD/agentic_detector_macos.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
   "SELECT kind, count(*) FROM agentic_software GROUP BY kind"
 ```
+
+## Signing & trust
+
+Two **separate** things gate running the extension — don't conflate them:
+
+1. **OS trust (signing)** — macOS Gatekeeper / Windows SmartScreen block
+   *downloaded, unsigned* binaries from executing. This is what code-signing
+   solves.
+2. **osquery's load check** — osquery refuses to autoload an extension that is
+   world-writable or not owned by root/Administrator (independent of any
+   signature), unless you pass `--allow_unsafe`. Covered at the end.
+
+The release binaries are unsigned. Sign per platform before distribution; for a
+one-off local run you can ad-hoc sign (below) or just clear quarantine
+(`xattr -d com.apple.quarantine …` / `Unblock-File …`).
+
+### macOS
+
+```bash
+# (a) Local / ad-hoc — enough to run on this machine. Also re-stamps the
+#     signature that `lipo` invalidates when it fuses the two arch slices.
+codesign --force --sign - agentic_detector_macos.ext
+codesign -dv --verbose=2 agentic_detector_macos.ext        # verify
+
+# (b) Distribution (other Macs / MDM) — Developer ID + notarization.
+codesign --force --options runtime --timestamp \
+  --sign "Developer ID Application: <ORG> (<TEAMID>)" agentic_detector_macos.ext
+ditto -c -k agentic_detector_macos.ext ext.zip             # notarize a container
+xcrun notarytool submit ext.zip --apple-id <id> --team-id <TEAMID> \
+  --password <app-specific-password> --wait
+```
+A standalone Mach-O can't be stapled (no container) — the notarization ticket is
+checked online at first launch, or staple the distribution package instead. For
+fleetd/MDM autoload the binary is placed on disk by the agent (not quarantined),
+so Developer ID signing is recommended but notarization isn't strictly required.
+
+### Windows (Authenticode)
+
+```powershell
+# Production cert:
+signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a `
+  agentic_detector_windows.ext.exe
+signtool verify /pa agentic_detector_windows.ext.exe        # verify
+
+# Dev / self-signed (testing only):
+$c = New-SelfSignedCertificate -Type CodeSigningCert `
+  -Subject "CN=agentic-detector-dev" -CertStoreLocation Cert:\CurrentUser\My
+Set-AuthenticodeSignature agentic_detector_windows.ext.exe -Certificate $c
+```
+
+### Linux
+
+No OS-level code signature is needed to execute. Trust is established by
+checksum (and optionally a detached GPG signature over the artifact):
+
+```bash
+sha256sum -c SHA256SUMS
+gpg --detach-sign --armor agentic_detector_linux.ext        # optional, publisher-side
+gpg --verify agentic_detector_linux.ext.asc                 # consumer-side
+```
+
+### osquery load permissions (all platforms)
+
+Before a production autoload (without `--allow_unsafe`):
+
+```bash
+# macOS / Linux — root-owned, not world-writable, parent dir likewise
+sudo chown root agentic_detector_*.ext && sudo chmod 755 agentic_detector_*.ext
+```
+Windows: the `.ext.exe` and its parent directory must be owned by
+Administrators with inheritance disabled. fleetd/orbit handles this placement
+automatically when it deploys the extension.
 
 ## Deploy via Fleet
 
