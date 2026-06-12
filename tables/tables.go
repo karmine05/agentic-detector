@@ -1,7 +1,8 @@
 // Package tables exposes a single, unified osquery table — agentic_software —
 // covering every agentic-software kind (MCP servers, IDE plugins, AI agent
-// CLIs, AI desktop apps, live AI/MCP sockets) through one schema with a `kind`
-// discriminator and a JSON `detail` column for kind-specific fields.
+// CLIs, AI desktop apps, live AI/MCP sockets, and agent instruction files)
+// through one schema with a `kind` discriminator, security `risk_flags` and
+// `sha256` columns, and a JSON `detail` column for kind-specific fields.
 //
 // It is optimized for a lightweight footprint:
 //   - constraint pushdown: a query with `WHERE kind = '...'` (or `kind IN (...)`)
@@ -26,30 +27,33 @@ import (
 	"github.com/karmine05/agentic-detector/internal/apps"
 	"github.com/karmine05/agentic-detector/internal/homes"
 	"github.com/karmine05/agentic-detector/internal/ide"
+	"github.com/karmine05/agentic-detector/internal/instructions"
 	"github.com/karmine05/agentic-detector/internal/mcp"
 	"github.com/karmine05/agentic-detector/internal/netsock"
 	"github.com/karmine05/agentic-detector/internal/proc"
 )
 
 // allKinds is the set of values the `kind` column can take.
-var allKinds = []string{"mcp_server", "ide_plugin", "ai_agent", "ai_app", "socket"}
+var allKinds = []string{"mcp_server", "ide_plugin", "ai_agent", "ai_app", "socket", "agent_instruction"}
 
 // columns is the unified schema. Common fields are first-class; everything
 // kind-specific lives in `detail` (compact JSON, empty fields omitted).
 var columns = []string{
-	"kind",       // mcp_server | ide_plugin | ai_agent | ai_app | socket
-	"name",       // server/plugin/agent/app/process display name
+	"kind",       // mcp_server | ide_plugin | ai_agent | ai_app | socket | agent_instruction
+	"name",       // server/plugin/agent/app/process/instruction-file name
 	"identifier", // plugin_id | bundle_id | mcp server name | agent binary | socket service
 	"category",   // classification bucket (coding-assistant, agent-runtime, ai-api-egress, ...)
 	"is_ai",      // 0/1
 	"location",   // local | remote
-	"source",     // provenance: client | editor | install_method | platform_source | direction
+	"source",     // provenance: client | editor | install_method | platform_source | direction | tool
 	"version",
-	"path",     // config/install/binary/app/process path
+	"path",     // config/install/binary/app/process/instruction-file path
 	"endpoint", // remote MCP url or socket remote addr:port
 	"running",  // 0/1
 	"pid",
-	"port", // listening_port | api_port | local_port
+	"port",       // listening_port | api_port | local_port
+	"risk_flags", // comma-separated security risk tokens ("" = none)
+	"sha256",     // content hash of the primary artifact (diffable identity / threat-intel match)
 	"uid",
 	"username",
 	"detail", // JSON: kind-specific extras
@@ -135,6 +139,16 @@ func generate(ctx context.Context, qc table.QueryContext) ([]map[string]string, 
 			rows = append(rows, appRow(a))
 		}
 	}
+	if kinds["agent_instruction"] {
+		for _, h := range hs {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			for _, in := range instructions.Scan(h) {
+				rows = append(rows, instructionRow(in))
+			}
+		}
+	}
 	return rows, nil
 }
 
@@ -190,16 +204,20 @@ func mcpRow(s mcp.Server) map[string]string {
 		"running":    itoa(s.Running),
 		"pid":        itoa(s.PID),
 		"port":       itoa(s.ListeningPort),
+		"risk_flags": s.RiskFlags,
+		"sha256":     s.SHA256,
 		"uid":        s.UID,
 		"username":   s.Username,
 	}, map[string]string{
-		"transport":   s.Transport,
-		"command":     s.Command,
-		"args":        s.Args,
-		"env_keys":    s.EnvKeys,
-		"scope":       s.Scope,
-		"source_kind": s.Source,
-		"enabled":     itoa(s.Enabled),
+		"transport":    s.Transport,
+		"command":      s.Command,
+		"args":         s.Args,
+		"env_keys":     s.EnvKeys,
+		"scope":        s.Scope,
+		"source_kind":  s.Source,
+		"enabled":      itoa(s.Enabled),
+		"capabilities": s.Capabilities,
+		"launch_hash":  s.LaunchHash,
 	})
 }
 
@@ -235,11 +253,15 @@ func agentRow(a agents.Agent) map[string]string {
 		"path":       a.Path,
 		"running":    itoa(a.Running),
 		"pid":        itoa(a.PID),
+		"risk_flags": a.RiskFlags,
+		"sha256":     a.SHA256,
 		"uid":        a.UID,
 		"username":   a.Username,
 	}, map[string]string{
-		"runtime": a.Runtime,
-		"binary":  a.Binary,
+		"runtime":         a.Runtime,
+		"binary":          a.Binary,
+		"binary_path":     a.BinaryPath,
+		"permission_mode": a.PermissionMode,
 	})
 }
 
@@ -256,11 +278,33 @@ func appRow(a apps.App) map[string]string {
 		"running":    itoa(a.Running),
 		"pid":        itoa(a.PID),
 		"port":       itoa(a.APIPort),
+		"sha256":     a.SHA256,
 	}, map[string]string{
 		"vendor":           a.Vendor,
 		"bundle_id":        a.BundleID,
 		"scope":            a.Scope,
 		"serves_local_api": itoa(a.ServesLocalAPI),
+	})
+}
+
+func instructionRow(in instructions.Instruction) map[string]string {
+	return row(map[string]string{
+		"kind":       "agent_instruction",
+		"name":       in.Name,
+		"identifier": in.Tool,
+		"category":   "agent-instruction",
+		"is_ai":      "1",
+		"location":   "local",
+		"source":     in.Tool,
+		"path":       in.Path,
+		"risk_flags": in.RiskFlags,
+		"sha256":     in.SHA256,
+		"uid":        in.UID,
+		"username":   in.Username,
+	}, map[string]string{
+		"scope":   in.Scope,
+		"size":    itoa(int(in.Size)),
+		"markers": in.Markers,
 	})
 }
 

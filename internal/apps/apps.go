@@ -7,6 +7,7 @@ package apps
 import (
 	"strings"
 
+	"github.com/karmine05/agentic-detector/internal/fsutil"
 	"github.com/karmine05/agentic-detector/internal/homes"
 	"github.com/karmine05/agentic-detector/internal/proc"
 )
@@ -24,6 +25,9 @@ type App struct {
 	APIPort        int
 	Running        int
 	PID            int
+	SHA256         string // hash of the app's primary executable (best-effort, diffable identity)
+
+	execPath string // resolved executable file, set per-platform; hashed in Scan
 }
 
 type knownApp struct {
@@ -65,6 +69,13 @@ func Scan(homesList []homes.Home, snap *proc.Snapshot) []App {
 			out[i].APIPort = k.apiPort
 		}
 		markRunning(&out[i], k, snap)
+		// Hash the primary executable (best-effort): per-platform execPath first,
+		// falling back to Path when it points directly at a file.
+		if h := fsutil.SHA256(out[i].execPath); h != "" {
+			out[i].SHA256 = h
+		} else {
+			out[i].SHA256 = fsutil.SHA256(out[i].Path)
+		}
 	}
 	return out
 }

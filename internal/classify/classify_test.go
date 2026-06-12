@@ -1,6 +1,9 @@
 package classify
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestVSCodePlugin(t *testing.T) {
 	cases := []struct {
@@ -50,5 +53,28 @@ func TestLocalPortService(t *testing.T) {
 	}
 	if _, ok := LocalPortService(3000); ok {
 		t.Error("LocalPortService(3000): generic port should not classify")
+	}
+}
+
+func TestMCPCapabilities(t *testing.T) {
+	cases := []struct {
+		hay  string
+		want []string // tags that must be present
+	}{
+		{"npx -y @modelcontextprotocol/server-filesystem /", []string{"fs-read", "fs-write"}},
+		{"node mcp-server-commands/index.js", []string{"shell-exec"}},
+		{"uvx mcp-server-git", []string{"repo-write"}},
+		{"npx @modelcontextprotocol/server-puppeteer", []string{"browser", "network"}},
+	}
+	for _, c := range cases {
+		got := strings.Join(MCPCapabilities(c.hay), ",")
+		for _, w := range c.want {
+			if !strings.Contains(got, w) {
+				t.Errorf("MCPCapabilities(%q)=%q missing %q", c.hay, got, w)
+			}
+		}
+	}
+	if caps := MCPCapabilities("node plain-server.js"); caps != nil {
+		t.Errorf("unknown server should infer no capabilities, got %v", caps)
 	}
 }

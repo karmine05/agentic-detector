@@ -34,6 +34,7 @@ func scanApps(homesList []homes.Home) []App {
 				Path:           firstNonEmpty(exec, e.Name()),
 				PlatformSource: "desktop-file",
 				Scope:          scope,
+				execPath:       execBinary(exec),
 			})
 		}
 	}
@@ -48,7 +49,7 @@ func scanApps(homesList []homes.Home) []App {
 	for _, b := range []string{"/usr/local/bin/ollama", "/usr/bin/ollama"} {
 		if fi, err := os.Stat(b); err == nil && !fi.IsDir() && !seen["ollama"] {
 			seen["ollama"] = true
-			out = append(out, App{Name: "ollama", Path: b, PlatformSource: "desktop-file", Scope: "system"})
+			out = append(out, App{Name: "ollama", Path: b, PlatformSource: "desktop-file", Scope: "system", execPath: b})
 		}
 	}
 	return out
@@ -69,4 +70,22 @@ func parseDesktop(path string) (name, exec string) {
 		}
 	}
 	return name, exec
+}
+
+// execBinary extracts the binary path from a .desktop Exec= line (the first
+// whitespace-separated token), returning it only when it is an absolute path to
+// an existing file — desktop field codes like %U are discarded.
+func execBinary(exec string) string {
+	fields := strings.Fields(exec)
+	if len(fields) == 0 {
+		return ""
+	}
+	bin := fields[0]
+	if !strings.HasPrefix(bin, "/") {
+		return ""
+	}
+	if fi, err := os.Stat(bin); err != nil || fi.IsDir() {
+		return ""
+	}
+	return bin
 }

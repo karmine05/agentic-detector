@@ -73,9 +73,26 @@ func Correlate(declared []Server, snap *proc.Snapshot) []Server {
 		if port := snap.ListenPort(pid); port != 0 {
 			s.ListeningPort = port
 		}
+		s.Args = argsJSON(p.Cmdline)
+		s.enrichRisk()
 		declared = append(declared, s)
 	}
 	return declared
+}
+
+// argsJSON extracts the launch arguments (everything after the executable) from
+// a process command line and encodes them as the JSON array the risk logic and
+// table row expect.
+func argsJSON(cmdline string) string {
+	fields := strings.Fields(cmdline)
+	if len(fields) <= 1 {
+		return ""
+	}
+	b, err := json.Marshal(fields[1:])
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 func processMatches(cmdline, base string, args []string) bool {

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/karmine05/agentic-detector/internal/fsutil"
 	"github.com/karmine05/agentic-detector/internal/homes"
 	"github.com/karmine05/agentic-detector/internal/paths"
 	"gopkg.in/yaml.v3"
@@ -35,6 +36,12 @@ type Server struct {
 	Running                int
 	PID                    int
 	ListeningPort          int
+
+	// Security posture (computed by enrichRisk).
+	Capabilities string // inferred capability tags, comma-separated (fs-write, shell-exec, ...)
+	RiskFlags    string // risk tokens, comma-separated (remote_fetch_exec, plaintext_secret, ...)
+	SHA256       string // hash of the declaring config file (diffable identity)
+	LaunchHash   string // hash of the launch spec (command+args+url) for rug-pull diffing
 }
 
 // ScanConfigs returns every MCP server declared in any client config under the
@@ -59,6 +66,9 @@ func ScanConfigs(h homes.Home) []Server {
 		}
 	}
 	out = append(out, scanContinueDir(h)...)
+	for i := range out {
+		out[i].enrichRisk()
+	}
 	return out
 }
 
@@ -166,14 +176,14 @@ func projectConfigFiles(home string) []cfgFile {
 	seen := map[string]bool{}
 	var out []cfgFile
 	addIf := func(client, path, key, format string) {
-		if seen[path] || !fileExists(path) {
+		if seen[path] || !fsutil.Exists(path) {
 			return
 		}
 		seen[path] = true
 		out = append(out, cfgFile{client: client, path: path, key: key, format: format, scope: "project"})
 	}
 	for _, root := range roots {
-		walkBounded(root, 3, func(dir string) {
+		fsutil.WalkBounded(root, 3, func(dir string) {
 			addIf("claude-code", filepath.Join(dir, ".mcp.json"), "mcpServers", "json")
 			addIf("cursor", filepath.Join(dir, ".cursor", "mcp.json"), "mcpServers", "json")
 			addIf("vscode", filepath.Join(dir, ".vscode", "mcp.json"), "servers", "json")
@@ -181,47 +191,6 @@ func projectConfigFiles(home string) []cfgFile {
 		})
 	}
 	return out
-}
-
-func walkBounded(root string, maxDepth int, visit func(dir string)) {
-	const maxDirs = 4000
-	skip := map[string]bool{
-		"node_modules": true, ".git": true, "vendor": true, "library": true,
-		".trash": true, ".cache": true, "dist": true, "build": true,
-		".venv": true, "venv": true, "target": true, ".next": true,
-	}
-	type item struct {
-		dir   string
-		depth int
-	}
-	stack := []item{{root, 0}}
-	count := 0
-	for len(stack) > 0 {
-		it := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		count++
-		if count > maxDirs {
-			return
-		}
-		visit(it.dir)
-		if it.depth >= maxDepth {
-			continue
-		}
-		entries, err := os.ReadDir(it.dir)
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if !e.IsDir() {
-				continue
-			}
-			name := e.Name()
-			if strings.HasPrefix(name, ".") || skip[strings.ToLower(name)] {
-				continue // dotted dirs (.cursor/.vscode/.roo) are probed via visit(), not descended
-			}
-			stack = append(stack, item{filepath.Join(it.dir, name), it.depth + 1})
-		}
-	}
 }
 
 // ---- parsing ----
@@ -525,9 +494,4 @@ func boolToInt(b bool) int {
 		return 1
 	}
 	return 0
-}
-
-func fileExists(p string) bool {
-	fi, err := os.Stat(p)
-	return err == nil && !fi.IsDir()
 }

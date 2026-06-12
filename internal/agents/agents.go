@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/karmine05/agentic-detector/internal/fsutil"
 	"github.com/karmine05/agentic-detector/internal/homes"
 	"github.com/karmine05/agentic-detector/internal/paths"
 	"github.com/karmine05/agentic-detector/internal/proc"
@@ -23,12 +24,18 @@ type Agent struct {
 	Name          string
 	Binary        string
 	Path          string
+	BinaryPath    string // resolved path of the executable file (hashed)
 	Version       string
 	Runtime       string // node | bun | python | rust | go | native
 	InstallMethod string // npm-global | pipx | homebrew | cargo | native
 	IsAI          int
 	Running       int
 	PID           int
+
+	// Security posture (computed during Scan).
+	SHA256         string // hash of the agent binary (diffable identity / threat-intel match)
+	PermissionMode string // declared autonomy posture (bypassPermissions, acceptEdits, ...)
+	RiskFlags      string // risk tokens, comma-separated (bypass_permissions, skip_permissions_runtime, ...)
 }
 
 type known struct {
@@ -37,20 +44,24 @@ type known struct {
 	npmPkg   string
 	pipxName string
 	runtime  string
+	// autoFlags are lowercased command-line substrings that indicate the agent
+	// is running in an unattended auto-approve / sandbox-disabled mode — the
+	// single highest-risk agentic posture on a host.
+	autoFlags []string
 }
 
 func knownAgents() []known {
 	return []known{
-		{"claude-code", []string{"claude"}, "@anthropic-ai/claude-code", "", "node"},
-		{"gemini-cli", []string{"gemini"}, "@google/gemini-cli", "", "node"},
-		{"codex", []string{"codex"}, "@openai/codex", "", "rust"},
-		{"aider", []string{"aider"}, "", "aider-chat", "python"},
-		{"goose", []string{"goose"}, "", "", "rust"},
-		{"opencode", []string{"opencode"}, "opencode-ai", "", "go"},
-		{"cline", []string{"cline"}, "cline", "", "node"},
-		{"continue-cli", []string{"cn"}, "@continuedev/cli", "", "node"},
-		{"cursor-agent", []string{"cursor-agent"}, "", "", "native"},
-		{"amazon-q", []string{"q", "kiro"}, "", "", "native"},
+		{"claude-code", []string{"claude"}, "@anthropic-ai/claude-code", "", "node", []string{"--dangerously-skip-permissions", "skip-permissions"}},
+		{"gemini-cli", []string{"gemini"}, "@google/gemini-cli", "", "node", []string{"--yolo", "--approval-mode yolo"}},
+		{"codex", []string{"codex"}, "@openai/codex", "", "rust", []string{"--dangerously-bypass-approvals-and-sandbox", "--yolo", "--full-auto", "danger-full-access"}},
+		{"aider", []string{"aider"}, "", "aider-chat", "python", []string{"--yes-always", "--yes"}},
+		{"goose", []string{"goose"}, "", "", "rust", nil},
+		{"opencode", []string{"opencode"}, "opencode-ai", "", "go", nil},
+		{"cline", []string{"cline"}, "cline", "", "node", nil},
+		{"continue-cli", []string{"cn"}, "@continuedev/cli", "", "node", nil},
+		{"cursor-agent", []string{"cursor-agent"}, "", "", "native", nil},
+		{"amazon-q", []string{"q", "kiro"}, "", "", "native", nil},
 	}
 }
 
@@ -71,7 +82,9 @@ func Scan(h homes.Home, snap *proc.Snapshot) []Agent {
 		if a.Runtime == "" {
 			a.Runtime = k.runtime
 		}
-		markRunning(&a, k, snap)
+		cmdline := markRunning(&a, k, snap)
+		a.SHA256 = fsutil.SHA256(a.BinaryPath)
+		enrichPosture(&a, k, h, cmdline)
 		out = append(out, a)
 	}
 	return out
@@ -102,6 +115,7 @@ func detect(k known, home string, binDirs, nmDirs []string) (Agent, bool) {
 	// 3. binary on a known bin dir (presence; install method inferred from path).
 	if bin, path, ok := findBinary(k.binaries, binDirs); ok {
 		a.Binary = bin
+		a.BinaryPath = path
 		if a.Path == "" {
 			a.Path = path
 			a.InstallMethod = methodFromPath(path)
@@ -215,7 +229,9 @@ func methodFromPath(path string) string {
 	}
 }
 
-func markRunning(a *Agent, k known, snap *proc.Snapshot) {
+// markRunning sets Running/PID when a process matches the agent and returns the
+// matched process command line (or "") so the caller can inspect runtime flags.
+func markRunning(a *Agent, k known, snap *proc.Snapshot) string {
 	for pid, p := range snap.Procs {
 		name := strings.ToLower(p.Name)
 		cmd := strings.ToLower(p.Cmdline)
@@ -223,14 +239,15 @@ func markRunning(a *Agent, k known, snap *proc.Snapshot) {
 			b := strings.ToLower(bin)
 			if name == b || name == b+".exe" || strings.Contains(cmd, "/"+b+" ") || strings.HasSuffix(name, b) {
 				a.Running, a.PID = 1, pid
-				return
+				return p.Cmdline
 			}
 		}
 		if k.npmPkg != "" && strings.Contains(cmd, strings.ToLower(k.npmPkg)) {
 			a.Running, a.PID = 1, pid
-			return
+			return p.Cmdline
 		}
 	}
+	return ""
 }
 
 func isDir(p string) bool {

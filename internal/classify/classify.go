@@ -9,6 +9,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -17,12 +18,13 @@ import (
 var kbBytes []byte
 
 type knowledge struct {
-	PluginIDs      map[string]string `json:"plugin_ids"`
-	JetBrainsIDs   map[string]string `json:"jetbrains_ids"`
-	NameRegex      []string          `json:"name_regex"`
-	CmdlineMarkers map[string]string `json:"cmdline_markers"`
-	LocalPorts     map[string]string `json:"local_ports"`
-	AIAPIHostsList []string          `json:"ai_api_hosts"`
+	PluginIDs       map[string]string `json:"plugin_ids"`
+	JetBrainsIDs    map[string]string `json:"jetbrains_ids"`
+	NameRegex       []string          `json:"name_regex"`
+	CmdlineMarkers  map[string]string `json:"cmdline_markers"`
+	LocalPorts      map[string]string `json:"local_ports"`
+	AIAPIHostsList  []string          `json:"ai_api_hosts"`
+	MCPCapabilities map[string]string `json:"mcp_capabilities"`
 }
 
 var (
@@ -94,3 +96,31 @@ func LocalPortService(port int) (string, bool) {
 
 // AIAPIHosts returns the known hosted AI/LLM API hostnames.
 func AIAPIHosts() []string { return data.AIAPIHostsList }
+
+// MCPCapabilities infers the capability tags of an MCP server from its launch
+// hay (command + args + server name, lowercased). The extension never connects
+// to the server to enumerate live tools — doing so would mean executing
+// untrusted code — so capability is inferred statically from the known-server
+// KB. Returns a sorted, de-duplicated tag list (e.g. ["fs-write","shell-exec"]).
+func MCPCapabilities(hay string) []string {
+	low := strings.ToLower(hay)
+	set := map[string]struct{}{}
+	for marker, tags := range data.MCPCapabilities {
+		if strings.Contains(low, marker) {
+			for _, t := range strings.Split(tags, ",") {
+				if t = strings.TrimSpace(t); t != "" {
+					set[t] = struct{}{}
+				}
+			}
+		}
+	}
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(set))
+	for t := range set {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}

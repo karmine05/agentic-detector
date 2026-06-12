@@ -1,6 +1,8 @@
 // Command agentic_detector is a cross-platform osquery extension that exposes
 // read-only tables inventorying agentic software on the host: MCP servers,
-// AI agent CLIs, AI desktop apps, IDE plugins, and live AI/MCP network sockets.
+// AI agent CLIs, AI desktop apps, IDE plugins, live AI/MCP network sockets, and
+// agent instruction files — each annotated with security risk flags and a
+// content hash.
 //
 // It speaks the osquery Thrift extension protocol over a UNIX socket / named
 // pipe. osquery autoloads it (--extensions_autoload) and passes --socket,

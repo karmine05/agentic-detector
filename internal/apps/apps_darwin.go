@@ -16,6 +16,7 @@ type infoPlist struct {
 	BundleID      string `plist:"CFBundleIdentifier"`
 	ShortVersion  string `plist:"CFBundleShortVersionString"`
 	BundleVersion string `plist:"CFBundleVersion"`
+	Executable    string `plist:"CFBundleExecutable"`
 }
 
 func scanApps(homesList []homes.Home) []App {
@@ -38,6 +39,10 @@ func scanApps(homesList []homes.Home) []App {
 				continue
 			}
 			seen[k.name] = true
+			exec := ""
+			if info.Executable != "" {
+				exec = filepath.Join(appPath, "Contents", "MacOS", info.Executable)
+			}
 			out = append(out, App{
 				Name:           k.name,
 				BundleID:       info.BundleID,
@@ -45,6 +50,7 @@ func scanApps(homesList []homes.Home) []App {
 				Path:           appPath,
 				PlatformSource: "applications",
 				Scope:          scope,
+				execPath:       exec,
 			})
 		}
 	}
