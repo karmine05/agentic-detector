@@ -339,4 +339,3 @@ osqueryi --allow_unsafe \
 - **Multi-user as root** — when `fleetd` runs the extension as root it reads all
   users' homes; under an unprivileged run, unreadable homes yield partial rows
   rather than errors.
-```
