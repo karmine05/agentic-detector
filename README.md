@@ -47,6 +47,45 @@ snapshot, home enumeration and config scan happen at most **once** per query and
 are shared across collectors; `kind = 'ide_plugin'` skips the process snapshot
 entirely.
 
+## Example queries
+
+Run these in the `osquery>` shell (`make run`), or one-shot by passing the
+`SELECT` as the last arg to `osqueryi` with the flags from
+[Local verification](#local-verification).
+
+```sql
+-- shell dot-commands (shell only, not one-shot):
+.tables agentic_software        -- confirm the table registered
+.schema agentic_software        -- list columns
+.mode line                      -- readable output for wide rows
+
+-- counts per kind
+SELECT kind, count(*) FROM agentic_software GROUP BY kind;
+
+-- everything classified AI on the host
+SELECT kind, name, category, running FROM agentic_software WHERE is_ai = 1 LIMIT 20;
+
+-- outbound AI/MCP connections — where data is going
+SELECT name, endpoint FROM agentic_software WHERE kind = 'socket' AND location = 'remote';
+
+-- running MCP servers, local stdio vs remote
+SELECT name, source AS client, location, running, pid
+  FROM agentic_software WHERE kind = 'mcp_server' AND running = 1;
+
+-- AI editor plugins with versions
+SELECT name, identifier, version, category
+  FROM agentic_software WHERE kind = 'ide_plugin' AND is_ai = 1;
+
+-- pull a kind-specific extra out of the JSON detail column
+SELECT name, json_extract(detail, '$.transport') AS transport, endpoint
+  FROM agentic_software WHERE kind = 'mcp_server';
+```
+
+`.tables`/`.schema`/`.mode` are osquery shell dot-commands — they only work
+inside the interactive shell, not as a one-shot query string. The `SELECT`s work
+both ways. Filtering on `kind` keeps queries cheap: only the matching collectors
+run (constraint pushdown).
+
 ## How detection works
 
 - **Config parsing** — JSON/YAML across every known MCP client; `command`⇒local, `url`/`serverUrl`⇒remote; VS Code's `servers` key vs everyone else's `mcpServers`; Zed's nested `command` object; per-project `.mcp.json`/`.cursor`/`.vscode`/`.roo` via a bounded walk of common dev roots.
@@ -76,13 +115,8 @@ Sign the binaries before distributing or running a downloaded copy — see
 ## Download a prebuilt binary
 
 Each [release](https://github.com/karmine05/agentic-detector/releases) attaches
-the five platform binaries plus `SHA256SUMS`. Grab the one for your platform
-(needs the [`gh`](https://cli.github.com) CLI for a private repo):
-
-```bash
-gh release download -R karmine05/agentic-detector --pattern 'agentic_detector_macos.ext'
-shasum -a 256 -c <(gh release download -R karmine05/agentic-detector --pattern SHA256SUMS -O -)  # verify
-```
+the five platform binaries plus `SHA256SUMS`. Downloading needs the
+[`gh`](https://cli.github.com) CLI (the repo is private).
 
 | Platform | Asset |
 |---|---|
@@ -92,19 +126,49 @@ shasum -a 256 -c <(gh release download -R karmine05/agentic-detector --pattern S
 | Windows x86-64 | `agentic_detector_windows.ext.exe` |
 | Windows ARM64 | `agentic_detector_windows_arm64.ext.exe` |
 
-The binaries are **not code-signed**. A *downloaded* copy is quarantined, so to
-run it manually:
+The binaries are **not code-signed**, so a downloaded copy is quarantined —
+clear it (below) or sign it ([Signing & trust](#signing--trust)).
 
-- **macOS:** `xattr -d com.apple.quarantine agentic_detector_macos.ext`
-- **Windows:** Unblock in file Properties, or `Unblock-File agentic_detector_windows.ext.exe`.
-
-(Sign + notarize before fleet-wide MDM deployment — see "Build" above.) Then run:
+**macOS** — download → clear quarantine → run:
 
 ```bash
+gh release download v0.1.0 -R karmine05/agentic-detector -p 'agentic_detector_macos.ext'
+xattr -d com.apple.quarantine agentic_detector_macos.ext   # unsigned → clear quarantine
 osqueryi --allow_unsafe --extension "$PWD/agentic_detector_macos.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
   "SELECT kind, count(*) FROM agentic_software GROUP BY kind"
 ```
+
+**Linux** (use `_linux_arm64.ext` on ARM):
+
+```bash
+gh release download v0.1.0 -R karmine05/agentic-detector -p 'agentic_detector_linux.ext'
+chmod +x agentic_detector_linux.ext
+osqueryi --allow_unsafe --extension "$PWD/agentic_detector_linux.ext" \
+  --extensions_require=agentic_detector --extensions_timeout=10 \
+  "SELECT kind, count(*) FROM agentic_software GROUP BY kind"
+```
+
+**Windows** (PowerShell; use `_windows_arm64.ext.exe` on ARM):
+
+```powershell
+gh release download v0.1.0 -R karmine05/agentic-detector -p 'agentic_detector_windows.ext.exe'
+Unblock-File agentic_detector_windows.ext.exe
+osqueryi.exe --allow_unsafe --extension "$PWD\agentic_detector_windows.ext.exe" `
+  --extensions_require=agentic_detector --extensions_timeout=10 `
+  "SELECT kind, count(*) FROM agentic_software GROUP BY kind"
+```
+
+Verify integrity before running:
+
+```bash
+gh release download v0.1.0 -R karmine05/agentic-detector -p SHA256SUMS
+shasum -a 256 -c SHA256SUMS      # Linux: sha256sum -c SHA256SUMS
+```
+
+`--extensions_require` / `--allow_unsafe` are explained in
+[Local verification](#local-verification); more queries in
+[Example queries](#example-queries).
 
 ## Signing & trust
 
