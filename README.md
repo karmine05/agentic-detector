@@ -76,6 +76,39 @@ extensions unless `--allow_unsafe`):
 - macOS: `codesign -s "Developer ID Application: <ORG>" --options runtime build/agentic_detector_macos.ext` then `notarytool` + `stapler`.
 - Windows: `signtool sign /fd SHA256 /a build/agentic_detector_windows.ext.exe`.
 
+## Download a prebuilt binary
+
+Each [release](https://github.com/karmine05/agentic-detector/releases) attaches
+the five platform binaries plus `SHA256SUMS`. Grab the one for your platform
+(needs the [`gh`](https://cli.github.com) CLI for a private repo):
+
+```bash
+gh release download -R karmine05/agentic-detector --pattern 'agentic_detector_macos.ext'
+shasum -a 256 -c <(gh release download -R karmine05/agentic-detector --pattern SHA256SUMS -O -)  # verify
+```
+
+| Platform | Asset |
+|---|---|
+| macOS (Intel + Apple Silicon) | `agentic_detector_macos.ext` (universal) |
+| Linux x86-64 | `agentic_detector_linux.ext` |
+| Linux ARM64 | `agentic_detector_linux_arm64.ext` |
+| Windows x86-64 | `agentic_detector_windows.ext.exe` |
+| Windows ARM64 | `agentic_detector_windows_arm64.ext.exe` |
+
+The binaries are **not code-signed**. A *downloaded* copy is quarantined, so to
+run it manually:
+
+- **macOS:** `xattr -d com.apple.quarantine agentic_detector_macos.ext`
+- **Windows:** Unblock in file Properties, or `Unblock-File agentic_detector_windows.ext.exe`.
+
+(Sign + notarize before fleet-wide MDM deployment — see "Build" above.) Then run:
+
+```bash
+osqueryi --allow_unsafe --extension "$PWD/agentic_detector_macos.ext" \
+  --extensions_require=agentic_detector --extensions_timeout=10 \
+  "SELECT kind, count(*) FROM agentic_software GROUP BY kind"
+```
+
 ## Deploy via Fleet
 
 Fleet's agent (`fleetd`/orbit) distributes custom extensions through a TUF

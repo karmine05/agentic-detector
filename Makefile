@@ -93,5 +93,12 @@ osq-verify: macos
 	osqueryi $(OSQ_FLAGS) \
 	  "SELECT kind, count(*) AS rows, sum(running) AS running FROM agentic_software GROUP BY kind"
 
+## ---- release artifacts ----
+# `make dist` builds every platform binary and writes SHA256SUMS over them.
+# Attach the build/ files to a GitHub release (see README "Download a build").
+dist: build-all
+	cd $(BUILD) && shasum -a 256 *.ext *.ext.exe > SHA256SUMS
+	@echo "checksums:" && cat $(BUILD)/SHA256SUMS
+
 clean:
 	rm -rf $(BUILD)
