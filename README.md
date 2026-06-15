@@ -352,10 +352,25 @@ GOTOOLCHAIN=go1.26.4 go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 Against a real osquery (requires `osqueryi` on PATH — `brew install --cask osquery`):
 
 ```bash
-make run         # interactive osquery> shell with the extension loaded
-make run-root    # same, as root (sees all users + all sockets, like fleetd)
-make osq-verify  # one-shot: row counts per kind
+make run                 # interactive osquery> shell with the extension loaded
+make run-root            # same, as root (sees all users + all sockets, like fleetd)
+make osq-verify          # one-shot: row counts per kind (macOS, host-native)
+make osq-verify-linux    # load the linux .ext: native osqueryi on Linux, else a linux/amd64 container
+make osq-verify-windows  # load the windows .ext.exe — Windows host only
 ```
+
+`osqueryi` loads only the **host-native** extension, so the linux/windows
+builds are verified by running osquery on (or emulating) those OSes:
+
+- `osq-verify-linux` runs native `osqueryi` on a Linux host; on macOS it loads
+  the amd64 build inside a `linux/amd64` osquery container (needs Docker).
+- `osq-verify-windows` runs `osqueryi.exe` on a Windows host. Windows containers
+  can't run on a macOS/Linux Docker host, so there's no cross-host path — run it
+  on Windows or a `windows-latest` CI runner.
+
+A clean container / fresh host has no AI tools installed, so an **empty result
+is a pass**: `--extensions_require` makes `osqueryi` exit non-zero if the
+extension fails to register, which is the real cross-platform signal.
 
 Inside the `osquery>` shell: `.tables` lists tables, `.schema ai_tools`
 shows columns, `.mode line` makes wide rows readable, then run any SQL. Exit
