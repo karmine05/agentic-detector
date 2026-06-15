@@ -1,6 +1,7 @@
 // Package classify is the AI/agent knowledge base. It maps known identifiers
-// (extension ids, process command lines, listening ports, API hostnames) to an
-// AI category. The KB is embedded as data (kb.json) so it can grow without code
+// (extension ids, process command lines, listening ports, MCP capability
+// markers) to an AI category. The KB is embedded as data (kb.json) so it can
+// grow without code
 // changes. This classification layer is what turns raw inventory into
 // agentic-risk signal.
 package classify

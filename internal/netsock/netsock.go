@@ -130,11 +130,12 @@ func isLoopback(ip string) bool {
 // buildHostSet resolves user-declared remote MCP hostnames to IPs so an
 // established connection can be attributed to a configured remote MCP server.
 //
-// We deliberately do NOT resolve the generic hosted-AI-API hostlist to IPs:
-// cloud providers share IPs across many services (e.g. a Google edge IP backs
-// both the Gemini API and unrelated Google traffic), so IP-based attribution
-// produces false positives. Egress to hosted AI APIs is instead attributed by
-// the owning process (classifyEstablished), which is robust and DNS-free.
+// Only user-declared remote MCP hosts are resolved here. We deliberately keep
+// no hostname list for hosted AI APIs: cloud providers share IPs across many
+// services (e.g. a Google edge IP backs both the Gemini API and unrelated
+// Google traffic), so IP-based attribution produces false positives. Egress to
+// hosted AI APIs is instead attributed by the owning process
+// (classifyEstablished), which is robust and DNS-free.
 func buildHostSet(ctx context.Context, remoteMCP map[string]string) map[string]hostInfo {
 	set := map[string]hostInfo{}
 	var res net.Resolver
