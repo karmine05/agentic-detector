@@ -28,7 +28,6 @@ type Agent struct {
 	Version       string
 	Runtime       string // node | bun | python | rust | go | native
 	InstallMethod string // npm-global | pipx | homebrew | cargo | native
-	IsAI          int
 	Running       int
 	PID           int
 
@@ -78,7 +77,6 @@ func Scan(h homes.Home, snap *proc.Snapshot) []Agent {
 		}
 		a.UID, a.Username = h.UID, h.Username
 		a.Name = k.name
-		a.IsAI = 1
 		if a.Runtime == "" {
 			a.Runtime = k.runtime
 		}

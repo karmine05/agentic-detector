@@ -1,16 +1,20 @@
-// Package tables exposes a single, unified osquery table — agentic_software —
-// covering every agentic-software kind (MCP servers, IDE plugins, AI agent
+// Package tables exposes a single, unified osquery table — ai_tools —
+// covering every AI-tool kind (MCP servers, IDE plugins, AI agent
 // CLIs, AI desktop apps, live AI/MCP sockets, and agent instruction files)
 // through one schema with a `kind` discriminator, security `risk_flags` and
 // `sha256` columns, and a JSON `detail` column for kind-specific fields.
+//
+// Every row surfaced is AI-related by construction — collectors only emit
+// AI/agent artifacts — so there is no `is_ai` column; presence in the table
+// is the signal.
 //
 // It is optimized for a lightweight footprint:
 //   - constraint pushdown: a query with `WHERE kind = '...'` (or `kind IN (...)`)
 //     only runs the collectors it needs;
 //   - one process/connection snapshot per query (shared across mcp/agents/apps/
-//     sockets), skipped entirely when only ide_plugin is requested;
+//     sockets), skipped entirely when only ide_plugins is requested;
 //   - one home-directory enumeration and one MCP-config scan, shared between the
-//     mcp_server and socket collectors.
+//     mcp_server and sockets collectors.
 package tables
 
 import (
@@ -34,16 +38,15 @@ import (
 )
 
 // allKinds is the set of values the `kind` column can take.
-var allKinds = []string{"mcp_server", "ide_plugin", "ai_agent", "ai_app", "socket", "agent_instruction"}
+var allKinds = []string{"mcp_server", "ide_plugins", "agents", "apps", "sockets", "agent_instruction"}
 
 // columns is the unified schema. Common fields are first-class; everything
 // kind-specific lives in `detail` (compact JSON, empty fields omitted).
 var columns = []string{
-	"kind",       // mcp_server | ide_plugin | ai_agent | ai_app | socket | agent_instruction
+	"kind",       // mcp_server | ide_plugins | agents | apps | sockets | agent_instruction
 	"name",       // server/plugin/agent/app/process/instruction-file name
 	"identifier", // plugin_id | bundle_id | mcp server name | agent binary | socket service
 	"category",   // classification bucket (coding-assistant, agent-runtime, ai-api-egress, ...)
-	"is_ai",      // 0/1
 	"location",   // local | remote
 	"source",     // provenance: client | editor | install_method | platform_source | direction | tool
 	"version",
@@ -62,7 +65,7 @@ var columns = []string{
 // All returns the single table plugin exposed by the extension.
 func All() []*table.Plugin {
 	return []*table.Plugin{
-		table.NewPlugin("agentic_software", columnDefs(), generate),
+		table.NewPlugin("ai_tools", columnDefs(), generate),
 	}
 }
 
@@ -70,7 +73,7 @@ func columnDefs() []table.ColumnDefinition {
 	defs := make([]table.ColumnDefinition, 0, len(columns))
 	for _, c := range columns {
 		switch c {
-		case "is_ai", "running", "pid", "port":
+		case "running", "pid", "port":
 			defs = append(defs, table.IntegerColumn(c))
 		default:
 			defs = append(defs, table.TextColumn(c))
@@ -84,16 +87,16 @@ func generate(ctx context.Context, qc table.QueryContext) ([]map[string]string, 
 
 	hs := homes.All()
 
-	needProc := kinds["mcp_server"] || kinds["ai_agent"] || kinds["ai_app"] || kinds["socket"]
+	needProc := kinds["mcp_server"] || kinds["agents"] || kinds["apps"] || kinds["sockets"]
 	var snap *proc.Snapshot
 	if needProc {
-		snap = proc.Take(ctx) // single snapshot, shared below
+		snap = proc.Take(ctx)
 	}
 
-	// MCP config scan is shared by the mcp_server rows and the socket egress
+	// MCP config scan is shared by the mcp_server rows and the sockets egress
 	// host set, so do it at most once.
 	var servers []mcp.Server
-	if kinds["mcp_server"] || kinds["socket"] {
+	if kinds["mcp_server"] || kinds["sockets"] {
 		for _, h := range hs {
 			if err := ctx.Err(); err != nil {
 				return nil, err
@@ -104,8 +107,8 @@ func generate(ctx context.Context, qc table.QueryContext) ([]map[string]string, 
 
 	rows := make([]map[string]string, 0, 128)
 
-	if kinds["socket"] {
-		for _, s := range netsock.Collect(snap, remoteHosts(servers)) {
+	if kinds["sockets"] {
+		for _, s := range netsock.Collect(ctx, snap, remoteHosts(servers)) {
 			rows = append(rows, socketRow(s))
 		}
 	}
@@ -114,7 +117,7 @@ func generate(ctx context.Context, qc table.QueryContext) ([]map[string]string, 
 			rows = append(rows, mcpRow(s))
 		}
 	}
-	if kinds["ide_plugin"] {
+	if kinds["ide_plugins"] {
 		for _, h := range hs {
 			if err := ctx.Err(); err != nil {
 				return nil, err
@@ -124,7 +127,7 @@ func generate(ctx context.Context, qc table.QueryContext) ([]map[string]string, 
 			}
 		}
 	}
-	if kinds["ai_agent"] {
+	if kinds["agents"] {
 		for _, h := range hs {
 			if err := ctx.Err(); err != nil {
 				return nil, err
@@ -134,7 +137,7 @@ func generate(ctx context.Context, qc table.QueryContext) ([]map[string]string, 
 			}
 		}
 	}
-	if kinds["ai_app"] {
+	if kinds["apps"] {
 		for _, a := range apps.Scan(hs, snap) {
 			rows = append(rows, appRow(a))
 		}
@@ -196,7 +199,6 @@ func mcpRow(s mcp.Server) map[string]string {
 		"name":       s.ServerName,
 		"identifier": s.ServerName,
 		"category":   "mcp-server",
-		"is_ai":      "1",
 		"location":   s.Location,
 		"source":     s.Client,
 		"path":       s.ConfigPath,
@@ -223,11 +225,10 @@ func mcpRow(s mcp.Server) map[string]string {
 
 func ideRow(p ide.Plugin) map[string]string {
 	return row(map[string]string{
-		"kind":       "ide_plugin",
+		"kind":       "ide_plugins",
 		"name":       p.Name,
 		"identifier": p.PluginID,
 		"category":   p.AICategory,
-		"is_ai":      itoa(p.IsAI),
 		"location":   "local",
 		"source":     p.Editor,
 		"version":    p.Version,
@@ -243,10 +244,9 @@ func ideRow(p ide.Plugin) map[string]string {
 
 func agentRow(a agents.Agent) map[string]string {
 	return row(map[string]string{
-		"kind":       "ai_agent",
+		"kind":       "agents",
 		"name":       a.Name,
 		"identifier": a.Binary,
-		"is_ai":      itoa(a.IsAI),
 		"location":   "local",
 		"source":     a.InstallMethod,
 		"version":    a.Version,
@@ -267,10 +267,9 @@ func agentRow(a agents.Agent) map[string]string {
 
 func appRow(a apps.App) map[string]string {
 	return row(map[string]string{
-		"kind":       "ai_app",
+		"kind":       "apps",
 		"name":       a.Name,
 		"identifier": a.BundleID,
-		"is_ai":      "1",
 		"location":   "local",
 		"source":     a.PlatformSource,
 		"version":    a.Version,
@@ -293,7 +292,6 @@ func instructionRow(in instructions.Instruction) map[string]string {
 		"name":       in.Name,
 		"identifier": in.Tool,
 		"category":   "agent-instruction",
-		"is_ai":      "1",
 		"location":   "local",
 		"source":     in.Tool,
 		"path":       in.Path,
@@ -318,11 +316,10 @@ func socketRow(s netsock.Socket) map[string]string {
 		}
 	}
 	return row(map[string]string{
-		"kind":       "socket",
+		"kind":       "sockets",
 		"name":       s.ProcessName,
 		"identifier": s.Service,
 		"category":   s.Category,
-		"is_ai":      itoa(s.IsAI),
 		"location":   loc,
 		"source":     s.Direction,
 		"path":       s.ProcessPath,

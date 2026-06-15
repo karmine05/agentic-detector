@@ -68,6 +68,9 @@ func scanVSCodeFamily(h homes.Home, _ paths.Roots) []Plugin {
 				id = strings.ToLower(m.Name)
 			}
 			isAI, cat := classify.VSCodePlugin(id, m.DisplayName)
+			if !isAI {
+				continue // AI tools only — skip non-AI extensions
+			}
 			p := Plugin{
 				Editor:       ed.editor,
 				EditorFamily: "vscode",
@@ -78,7 +81,7 @@ func scanVSCodeFamily(h homes.Home, _ paths.Roots) []Plugin {
 				InstallPath:  filepath.Join(dir, folder),
 				ManifestPath: manifestPath,
 			}
-			out = append(out, p.finish(h, isAI, cat))
+			out = append(out, p.finish(h, cat))
 		}
 	}
 	return out

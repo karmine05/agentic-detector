@@ -37,9 +37,6 @@ func TestDetectClaudeCode(t *testing.T) {
 	if cc.Binary != "claude" {
 		t.Errorf("binary=%q want claude", cc.Binary)
 	}
-	if cc.IsAI != 1 {
-		t.Error("agent should be marked is_ai=1")
-	}
 }
 
 func TestMarkRunning(t *testing.T) {

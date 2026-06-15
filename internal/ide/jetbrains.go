@@ -90,6 +90,9 @@ func scanJetBrainsPluginsDir(h homes.Home, editor, pluginsDir string) []Plugin {
 		}
 		id := firstNonEmptyStr(meta.ID, meta.Name)
 		isAI, cat := classify.JetBrainsPlugin(meta.ID, meta.Name)
+		if !isAI {
+			continue // AI tools only — skip non-AI plugins
+		}
 		p := Plugin{
 			Editor:       editor,
 			EditorFamily: "jetbrains",
@@ -100,7 +103,7 @@ func scanJetBrainsPluginsDir(h homes.Home, editor, pluginsDir string) []Plugin {
 			InstallPath:  full,
 			ManifestPath: manifest,
 		}
-		out = append(out, p.finish(h, isAI, cat))
+		out = append(out, p.finish(h, cat))
 	}
 	return out
 }
@@ -141,7 +144,7 @@ func readPluginXMLFromJar(jarPath string) ([]byte, bool) {
 				return nil, false
 			}
 			data, err := io.ReadAll(io.LimitReader(rc, 1<<20)) // cap at 1 MiB
-			rc.Close()
+			_ = rc.Close()                                     // read-only zip entry; close error is non-actionable
 			if err != nil {
 				return nil, false
 			}

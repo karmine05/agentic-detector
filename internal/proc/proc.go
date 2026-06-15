@@ -1,8 +1,8 @@
 // Package proc takes a single cross-platform snapshot of running processes and
 // network connections via gopsutil. One snapshot is shared across the
-// mcp_servers correlation, ai_agents/ai_apps liveness checks, and the
-// agentic_sockets table so the extension enumerates the process/connection
-// tables only once per query.
+// mcp_server correlation, agents/apps liveness checks, and the sockets
+// collector (all kinds of the unified ai_tools table) so the extension
+// enumerates the process/connection tables only once per query.
 package proc
 
 import (
@@ -27,7 +27,6 @@ type Process struct {
 type Conn struct {
 	PID        int
 	Status     string // LISTEN, ESTABLISHED, ...
-	Family     uint32 // AF_INET=2, AF_INET6=10/23/30
 	Type       uint32 // SOCK_STREAM=1 (tcp), SOCK_DGRAM=2 (udp)
 	LocalIP    string
 	LocalPort  int
@@ -65,7 +64,6 @@ func Take(ctx context.Context) *Snapshot {
 			s.Conns = append(s.Conns, Conn{
 				PID:        int(c.Pid),
 				Status:     c.Status,
-				Family:     c.Family,
 				Type:       c.Type,
 				LocalIP:    c.Laddr.IP,
 				LocalPort:  int(c.Laddr.Port),

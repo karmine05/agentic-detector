@@ -28,15 +28,15 @@ const maxReadBytes = 256 << 10 // 256 KiB
 
 // Instruction is one discovered agent instruction file.
 type Instruction struct {
-	UID, Username, HomeDir string
-	Path                   string
-	Name                   string // base file name
-	Tool                   string // claude | codex | gemini | cursor | copilot | cline | windsurf | generic
-	Scope                  string // user | project
-	SHA256                 string
-	Size                   int64
-	RiskFlags              string // injection_markers, hidden_unicode, world_readable
-	Markers                string // matched injection-marker keywords, comma-separated
+	UID, Username string
+	Path          string
+	Name          string // base file name
+	Tool          string // claude | codex | gemini | cursor | copilot | cline | windsurf | generic
+	Scope         string // user | project
+	SHA256        string
+	Size          int64
+	RiskFlags     string // injection_markers, hidden_unicode, world_readable
+	Markers       string // matched injection-marker keywords, comma-separated
 }
 
 // userProbe is a fixed instruction-file location relative to a home directory.
@@ -124,7 +124,7 @@ func projectRoots(home string) []string {
 
 func build(h homes.Home, path, tool, scope string) Instruction {
 	in := Instruction{
-		UID: h.UID, Username: h.Username, HomeDir: h.Dir,
+		UID: h.UID, Username: h.Username,
 		Path: path, Name: filepath.Base(path), Tool: tool, Scope: scope,
 		SHA256: fsutil.SHA256(path),
 	}

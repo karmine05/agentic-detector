@@ -20,22 +20,22 @@ import (
 
 // Server is one discovered MCP server (declared in config and/or running).
 type Server struct {
-	UID, Username, HomeDir string
-	Client                 string // claude-desktop, cursor, vscode, process, ...
-	Scope                  string // user | project | global
-	ConfigPath             string
-	ServerName             string
-	Transport              string // stdio | http | sse | streamable-http
-	Location               string // local | remote
-	Command                string
-	Args                   string // JSON array
-	URL                    string
-	EnvKeys                string // JSON array of env var NAMES only (never values)
-	Enabled                int    // -1 unknown, 0 disabled, 1 enabled
-	Source                 string // config | process | both
-	Running                int
-	PID                    int
-	ListeningPort          int
+	UID, Username string
+	Client        string // claude-desktop, cursor, vscode, process, ...
+	Scope         string // user | project | global
+	ConfigPath    string
+	ServerName    string
+	Transport     string // stdio | http | sse | streamable-http
+	Location      string // local | remote
+	Command       string
+	Args          string // JSON array
+	URL           string
+	EnvKeys       string // JSON array of env var NAMES only (never values)
+	Enabled       int    // -1 unknown, 0 disabled, 1 enabled
+	Source        string // config | process | both
+	Running       int
+	PID           int
+	ListeningPort int
 
 	// Security posture (computed by enrichRisk).
 	Capabilities string // inferred capability tags, comma-separated (fs-write, shell-exec, ...)
@@ -54,7 +54,7 @@ func ScanConfigs(h homes.Home) []Server {
 	files = append(files, projectConfigFiles(h.Dir)...)
 	for _, cf := range files {
 		for _, s := range parseFile(cf) {
-			s.UID, s.Username, s.HomeDir = h.UID, h.Username, h.Dir
+			s.UID, s.Username = h.UID, h.Username
 			if s.Client == "" {
 				s.Client = cf.client
 			}
@@ -405,7 +405,7 @@ func scanContinueDir(h homes.Home) []Server {
 			continue
 		}
 		srv := rs.toServer(firstNonEmpty(rs.Name, strings.TrimSuffix(name, filepath.Ext(name))))
-		srv.UID, srv.Username, srv.HomeDir = h.UID, h.Username, h.Dir
+		srv.UID, srv.Username = h.UID, h.Username
 		srv.Client, srv.Scope, srv.ConfigPath = "continue", "user", p
 		out = append(out, srv)
 	}

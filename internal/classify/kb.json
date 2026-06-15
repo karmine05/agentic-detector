@@ -110,18 +110,5 @@
     "mcp-server-docker": "shell-exec,infra-control",
     "server-memory": "memory",
     "server-sequential-thinking": "memory"
-  },
-  "ai_api_hosts": [
-    "api.anthropic.com",
-    "api.openai.com",
-    "generativelanguage.googleapis.com",
-    "api.cohere.ai",
-    "api.mistral.ai",
-    "api.groq.com",
-    "api.perplexity.ai",
-    "api.x.ai",
-    "openrouter.ai",
-    "api.deepseek.com",
-    "api.together.xyz"
-  ]
+  }
 }

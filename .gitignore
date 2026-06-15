@@ -3,3 +3,4 @@
 *.ext.exe
 .DS_Store
 .claude-flow/
+.vscode/

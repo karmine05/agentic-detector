@@ -16,7 +16,7 @@ It is **detection-only** — read-only tables, no remediation. It never executes
 discovered binary, and never connects to an MCP server to enumerate its tools
 (capability is inferred statically); files are read and hashed, never run.
 
-## The `agentic_software` table
+## The `ai_tools` table
 
 One table covers everything. A `kind` column discriminates the row type; common
 fields are first-class columns; kind-specific extras live in a compact JSON
@@ -27,22 +27,23 @@ not just the daemon account's.
 | `kind` | Row represents |
 |---|---|
 | `mcp_server` | An MCP server declared in any client config (Claude Desktop/Code, Cursor, Windsurf, VS Code, Zed, Cline, Roo, Continue) and/or a running MCP server process. |
-| `ide_plugin` | An installed editor plugin (VS Code family incl. Cursor/Windsurf/VSCodium/Trae/Antigravity/code-server, JetBrains, Zed, Sublime, Neovim/Vim, Emacs). |
-| `ai_agent` | An installed AI agent CLI (Claude Code, Gemini, Codex, aider, goose, opencode, Cline, Continue, cursor-agent, Amazon Q/Kiro). |
-| `ai_app` | An installed AI desktop app (Claude Desktop, ChatGPT, Ollama, LM Studio, Jan, GPT4All, Msty, AnythingLLM, Perplexity, Cursor, Windsurf, Antigravity). |
-| `socket` | A live AI/MCP network socket — local inference/MCP listener or outbound AI/MCP egress. |
+| `ide_plugins` | An installed editor plugin (VS Code family incl. Cursor/Windsurf/VSCodium/Trae/Antigravity/code-server, JetBrains, Zed, Sublime, Neovim/Vim, Emacs). |
+| `agents` | An installed AI agent CLI (Claude Code, Gemini, Codex, aider, goose, opencode, Cline, Continue, cursor-agent, Amazon Q/Kiro). |
+| `apps` | An installed AI desktop app (Claude Desktop, ChatGPT, Ollama, LM Studio, Jan, GPT4All, Msty, AnythingLLM, Perplexity, Cursor, Windsurf, Antigravity). |
+| `sockets` | A live AI/MCP network socket — local inference/MCP listener or outbound AI/MCP egress. |
 | `agent_instruction` | An agent instruction file the AI auto-loads and obeys (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.github/copilot-instructions.md`, Cursor `.mdc` rules, …) — a prompt-injection / agent-hijack surface. |
 
 ### Columns
 
-`kind, name, identifier, category, is_ai, location, source, version, path, endpoint, running, pid, port, risk_flags, sha256, uid, username, detail`
+`kind, name, identifier, category, location, source, version, path, endpoint, running, pid, port, risk_flags, sha256, uid, username, detail`
+
+Every row is an AI tool by construction (collectors emit only AI/agent artifacts), so there is no `is_ai` column — presence in the table is the signal.
 
 | Column | Meaning (varies by kind) |
 |---|---|
 | `name` | server / plugin / agent / app / process / instruction-file name |
 | `identifier` | mcp server name · `publisher.name` · agent binary · bundle id · socket service · instruction tool |
 | `category` | classification bucket (`coding-assistant`, `agent-runtime`, `inference-api-local`, `mcp-remote-egress`, `ai-api-egress`, `mcp-server`, `agent-instruction`, …) |
-| `is_ai` | 0/1 |
 | `location` | `local` or `remote` |
 | `source` | provenance: MCP client · editor · install method · platform source · socket direction · instruction tool |
 | `path` | config / install / binary / app / process / instruction-file path |
@@ -62,8 +63,8 @@ not just the daemon account's.
 | `plaintext_secret` | mcp_server | A secret-shaped env var name is set inline in the config (value on disk) |
 | `world_readable_config` | mcp_server | The declaring config file is group/other-readable |
 | `cleartext_endpoint` | mcp_server | Remote MCP reached over plain `http://` |
-| `bypass_permissions`, `auto_accept_edits` | ai_agent | Declared autonomy posture (Claude Code `permissions.defaultMode`) |
-| `skip_permissions_runtime` | ai_agent | Running with an unattended auto-approve / sandbox-disabled flag |
+| `bypass_permissions`, `auto_accept_edits` | agents | Declared autonomy posture (Claude Code `permissions.defaultMode`) |
+| `skip_permissions_runtime` | agents | Running with an unattended auto-approve / sandbox-disabled flag |
 | `injection_markers` | agent_instruction | Content carries prompt-injection / exfiltration phrases (see `detail.markers`) |
 | `hidden_unicode` | agent_instruction | Contains zero-width / Unicode-tag characters used to smuggle instructions |
 | `world_writable` | agent_instruction | File is world-writable — any local user can hijack the agent |
@@ -73,7 +74,7 @@ Capability inference is **static** (from the known-server KB): the extension nev
 **Lightweight by design:** a query with `WHERE kind = '…'` (or `kind IN (…)`)
 only runs the collectors it needs (constraint pushdown); the process/connection
 snapshot, home enumeration and config scan happen at most **once** per query and
-are shared across collectors; `kind = 'ide_plugin'` skips the process snapshot
+are shared across collectors; `kind = 'ide_plugins'` skips the process snapshot
 entirely.
 
 ## Example queries
@@ -84,46 +85,46 @@ Run these in the `osquery>` shell (`make run`), or one-shot by passing the
 
 ```sql
 -- shell dot-commands (shell only, not one-shot):
-.tables agentic_software        -- confirm the table registered
-.schema agentic_software        -- list columns
+.tables ai_tools        -- confirm the table registered
+.schema ai_tools        -- list columns
 .mode line                      -- readable output for wide rows
 
 -- counts per kind
-SELECT kind, count(*) FROM agentic_software GROUP BY kind;
+SELECT kind, count(*) FROM ai_tools GROUP BY kind;
 
--- everything classified AI on the host
-SELECT kind, name, category, running FROM agentic_software WHERE is_ai = 1 LIMIT 20;
+-- everything on the host (every row is an AI tool)
+SELECT kind, name, category, running FROM ai_tools LIMIT 20;
 
 -- outbound AI/MCP connections — where data is going
-SELECT name, endpoint FROM agentic_software WHERE kind = 'socket' AND location = 'remote';
+SELECT name, endpoint FROM ai_tools WHERE kind = 'sockets' AND location = 'remote';
 
 -- running MCP servers, local stdio vs remote
 SELECT name, source AS client, location, running, pid
-  FROM agentic_software WHERE kind = 'mcp_server' AND running = 1;
+  FROM ai_tools WHERE kind = 'mcp_server' AND running = 1;
 
 -- AI editor plugins with versions
 SELECT name, identifier, version, category
-  FROM agentic_software WHERE kind = 'ide_plugin' AND is_ai = 1;
+  FROM ai_tools WHERE kind = 'ide_plugins';
 
 -- pull a kind-specific extra out of the JSON detail column
 SELECT name, json_extract(detail, '$.transport') AS transport, endpoint
-  FROM agentic_software WHERE kind = 'mcp_server';
+  FROM ai_tools WHERE kind = 'mcp_server';
 
 -- anything carrying a security risk flag, across every kind
-SELECT kind, name, risk_flags, path FROM agentic_software WHERE risk_flags != '';
+SELECT kind, name, risk_flags, path FROM ai_tools WHERE risk_flags != '';
 
 -- MCP servers that fetch unpinned remote code at launch (supply-chain risk)
 SELECT name, json_extract(detail, '$.command') AS cmd, json_extract(detail, '$.args') AS args
-  FROM agentic_software
+  FROM ai_tools
   WHERE kind = 'mcp_server' AND risk_flags LIKE '%unpinned_dependency%';
 
 -- agents running unattended (auto-approve / skip-permissions)
 SELECT name, risk_flags, json_extract(detail, '$.permission_mode') AS mode
-  FROM agentic_software WHERE kind = 'ai_agent' AND risk_flags != '';
+  FROM ai_tools WHERE kind = 'agents' AND risk_flags != '';
 
 -- instruction files flagged for prompt injection or hidden unicode
 SELECT name, path, risk_flags, json_extract(detail, '$.markers') AS markers
-  FROM agentic_software WHERE kind = 'agent_instruction' AND risk_flags != '';
+  FROM ai_tools WHERE kind = 'agent_instruction' AND risk_flags != '';
 ```
 
 `.tables`/`.schema`/`.mode` are osquery shell dot-commands — they only work
@@ -134,7 +135,7 @@ run (constraint pushdown).
 ## How detection works
 
 - **Config parsing** — JSON/YAML across every known MCP client; `command`⇒local, `url`/`serverUrl`⇒remote; VS Code's `servers` key vs everyone else's `mcpServers`; Zed's nested `command` object; per-project `.mcp.json`/`.cursor`/`.vscode`/`.roo` via a bounded walk of common dev roots.
-- **Process/connection snapshot** — one `gopsutil` snapshot per query feeds liveness (`running`/`pid`), listening-port fill, and the `agentic_sockets` table.
+- **Process/connection snapshot** — one `gopsutil` snapshot per query feeds liveness (`running`/`pid`), listening-port fill, and the `sockets`-kind rows.
 - **Classification KB** — `internal/classify/kb.json` (embedded) maps known extension ids, process-cmdline markers, inference ports, hosted-AI API hostnames, and MCP-server capability tags to categories. Egress is attributed **process-first** (an AI/agent process's connections are AI traffic) before any DNS heuristic; no brittle IP allowlists.
 - **Integrity fingerprints** — every MCP config, agent/app binary, and instruction file is SHA-256 hashed (`sha256` column) plus a `launch_hash` over each MCP server's command/args/url, so a SIEM can detect a changed binary or a silently-mutated launch vector (rug-pull) by diffing snapshots.
 - **Risk posture** — static, KB-driven flags surface supply-chain exposure (`remote_fetch_exec`/`unpinned_dependency`), inferred MCP capabilities (`mcp_shell_exec`/`mcp_fs_write`), plaintext secrets and world-readable configs, agent autonomy mode (`bypass_permissions`/`skip_permissions_runtime`), and prompt-injection markers / hidden unicode in instruction files. See [`risk_flags` tokens](#risk_flags-tokens).
@@ -184,7 +185,7 @@ gh release download v0.1.0 -R karmine05/agentic-detector -p 'agentic_detector_ma
 xattr -d com.apple.quarantine agentic_detector_macos.ext   # unsigned → clear quarantine
 osqueryi --allow_unsafe --extension "$PWD/agentic_detector_macos.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
-  "SELECT kind, count(*) FROM agentic_software GROUP BY kind"
+  "SELECT kind, count(*) FROM ai_tools GROUP BY kind"
 ```
 
 **Linux** (use `_linux_arm64.ext` on ARM):
@@ -194,7 +195,7 @@ gh release download v0.1.0 -R karmine05/agentic-detector -p 'agentic_detector_li
 chmod +x agentic_detector_linux.ext
 osqueryi --allow_unsafe --extension "$PWD/agentic_detector_linux.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
-  "SELECT kind, count(*) FROM agentic_software GROUP BY kind"
+  "SELECT kind, count(*) FROM ai_tools GROUP BY kind"
 ```
 
 **Windows** (PowerShell; use `_windows_arm64.ext.exe` on ARM):
@@ -204,7 +205,7 @@ gh release download v0.1.0 -R karmine05/agentic-detector -p 'agentic_detector_wi
 Unblock-File agentic_detector_windows.ext.exe
 osqueryi.exe --allow_unsafe --extension "$PWD\agentic_detector_windows.ext.exe" `
   --extensions_require=agentic_detector --extensions_timeout=10 `
-  "SELECT kind, count(*) FROM agentic_software GROUP BY kind"
+  "SELECT kind, count(*) FROM ai_tools GROUP BY kind"
 ```
 
 Verify integrity before running:
@@ -321,26 +322,31 @@ auto-update server and autoloads them. (Fleet Premium.)
 
    ```sql
    -- remote MCP servers
-   SELECT name, source, endpoint FROM agentic_software
+   SELECT name, source, endpoint FROM ai_tools
      WHERE kind = 'mcp_server' AND location = 'remote';
 
    -- AI editor plugins
-   SELECT name, identifier, version, category FROM agentic_software
-     WHERE kind = 'ide_plugin' AND is_ai = 1;
+   SELECT name, identifier, version, category FROM ai_tools
+     WHERE kind = 'ide_plugins';
 
    -- live AI/MCP egress + local inference listeners
-   SELECT name, category, endpoint, port FROM agentic_software
-     WHERE kind = 'socket';
+   SELECT name, category, endpoint, port FROM ai_tools
+     WHERE kind = 'sockets';
 
-   -- everything AI on the host, one query
-   SELECT kind, name, category, running FROM agentic_software WHERE is_ai = 1;
+   -- everything on the host, one query (every row is an AI tool)
+   SELECT kind, name, category, running FROM ai_tools;
    ```
 
 ## Local verification
 
 ```bash
 make check                                     # gofmt + vet + race tests
+make sec                                       # gosec static security analysis
 AED_SMOKE=1 go test -run TestSmokeLiveHost -v ./tables/   # run generators against THIS host
+
+# Dependency CVE scan (Go vuln DB). govulncheck must build under the pinned
+# toolchain — the base `go`/a prebuilt govulncheck binary can't load go1.26 pkgs:
+GOTOOLCHAIN=go1.26.4 go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 ```
 
 Against a real osquery (requires `osqueryi` on PATH — `brew install --cask osquery`):
@@ -351,7 +357,7 @@ make run-root    # same, as root (sees all users + all sockets, like fleetd)
 make osq-verify  # one-shot: row counts per kind
 ```
 
-Inside the `osquery>` shell: `.tables` lists tables, `.schema agentic_software`
+Inside the `osquery>` shell: `.tables` lists tables, `.schema ai_tools`
 shows columns, `.mode line` makes wide rows readable, then run any SQL. Exit
 with `.exit`, `.quit`, or `Ctrl-D`.
 
@@ -361,12 +367,12 @@ Raw equivalent — note the two flags that matter:
 osqueryi --allow_unsafe \
   --extension "$PWD/build/agentic_detector_macos.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
-  "SELECT kind, name, category, running FROM agentic_software WHERE is_ai = 1"
+  "SELECT kind, name, category, running FROM ai_tools"
 ```
 
 - `--extensions_require=agentic_detector` — **required for one-shot queries**.
   Without it, `osqueryi "QUERY"` runs before the extension finishes its async
-  registration and reports `no such table: agentic_software`. (Interactive
+  registration and reports `no such table: ai_tools`. (Interactive
   `osquery>` sessions are fine without it — registration completes before you
   type.)
 - `--allow_unsafe` — local testing only; in production osquery enforces
@@ -387,11 +393,19 @@ osqueryi --allow_unsafe \
   posture; pair the hash with external threat-intel instead.
 - **Bounded** — project-config discovery walks a capped set of dev roots to a
   shallow depth, so arbitrary project locations are partial coverage.
-- **Egress attribution is process-first** — a `socket` row is `ai-api-egress`
+- **Egress attribution is process-first** — a `sockets` row is `ai-api-egress`
   because the *owning process* is an AI/agent tool, not because of the
   destination IP. Hosted-AI-API IPs are intentionally **not** matched: cloud
   providers share IPs across services, so IP-based attribution mislabels
   unrelated traffic. Loopback connections are treated as local IPC, not egress.
+  The one place a hostname *is* resolved — mapping a user-declared remote MCP
+  host to its IPs — uses a **bounded (2 s/lookup), cancellable resolver** that
+  honors the query's context, so the root scanner never hangs on slow or hostile
+  DNS for an attacker-supplied config hostname.
 - **Multi-user as root** — when `fleetd` runs the extension as root it reads all
   users' homes; under an unprivileged run, unreadable homes yield partial rows
   rather than errors.
+- **Dependency & code hygiene** — the module is `govulncheck`-clean (Go vuln DB)
+  and `gosec`-clean; the Go toolchain is pinned (`go 1.26.4`) to keep reachable
+  stdlib CVEs at zero. See [Local verification](#local-verification) for the scan
+  commands.

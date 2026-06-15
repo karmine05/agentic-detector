@@ -6,8 +6,10 @@
 package netsock
 
 import (
+	"context"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/karmine05/agentic-detector/internal/classify"
 	"github.com/karmine05/agentic-detector/internal/proc"
@@ -26,7 +28,6 @@ type Socket struct {
 	RemoteHost                                  string
 	Service                                     string
 	Category                                    string // mcp-server-local | inference-api-local | mcp-remote-egress | ai-api-egress | agent-runtime
-	IsAI                                        int
 }
 
 type hostInfo struct {
@@ -35,11 +36,11 @@ type hostInfo struct {
 }
 
 // Collect classifies the snapshot's connections. remoteMCPHosts maps a hostname
-// parsed from a remote MCP config to a label; those hosts (plus the known
-// hosted-AI API hosts) are resolved to IPs so established connections can be
-// attributed even without per-connection reverse DNS.
-func Collect(snap *proc.Snapshot, remoteMCPHosts map[string]string) []Socket {
-	hosts := buildHostSet(remoteMCPHosts)
+// parsed from a remote MCP config to a label; those hosts are resolved to IPs so
+// established connections can be attributed even without per-connection reverse
+// DNS.
+func Collect(ctx context.Context, snap *proc.Snapshot, remoteMCPHosts map[string]string) []Socket {
+	hosts := buildHostSet(ctx, remoteMCPHosts)
 	var out []Socket
 
 	for _, c := range snap.Conns {
@@ -69,7 +70,6 @@ func Collect(snap *proc.Snapshot, remoteMCPHosts map[string]string) []Socket {
 		}
 
 		if sock.Category != "" {
-			sock.IsAI = 1
 			if sock.Service == "" {
 				sock.Service = "unknown"
 			}
@@ -135,8 +135,9 @@ func isLoopback(ip string) bool {
 // both the Gemini API and unrelated Google traffic), so IP-based attribution
 // produces false positives. Egress to hosted AI APIs is instead attributed by
 // the owning process (classifyEstablished), which is robust and DNS-free.
-func buildHostSet(remoteMCP map[string]string) map[string]hostInfo {
+func buildHostSet(ctx context.Context, remoteMCP map[string]string) map[string]hostInfo {
 	set := map[string]hostInfo{}
+	var res net.Resolver
 	for host, label := range remoteMCP {
 		host = strings.ToLower(strings.TrimSpace(host))
 		if host == "" {
@@ -144,7 +145,12 @@ func buildHostSet(remoteMCP map[string]string) map[string]hostInfo {
 		}
 		info := hostInfo{label, "mcp-remote-egress"}
 		set[host] = info
-		ips, _ := net.LookupHost(host) // best-effort; resolution failures are non-fatal
+		// Bounded, cancellable lookup: a root-level scanner must never hang
+		// indefinitely on slow/hostile DNS for an attacker-supplied hostname
+		// from an MCP config. Resolution failures are non-fatal (best-effort).
+		lookupCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		ips, _ := res.LookupHost(lookupCtx, host)
+		cancel()
 		for _, ip := range ips {
 			set[ip] = info
 		}

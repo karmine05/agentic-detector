@@ -1,6 +1,7 @@
 package netsock
 
 import (
+	"context"
 	"testing"
 
 	"github.com/karmine05/agentic-detector/internal/proc"
@@ -23,7 +24,7 @@ func TestCollect(t *testing.T) {
 		},
 	}
 
-	socks := Collect(snap, nil)
+	socks := Collect(context.Background(), snap, nil)
 
 	var listen, egress *Socket
 	for i := range socks {
@@ -42,7 +43,7 @@ func TestCollect(t *testing.T) {
 	if listen == nil || listen.Category != "inference-api-local" || listen.Service != "ollama" || listen.LocalPort != 11434 {
 		t.Errorf("ollama listener misclassified: %+v", listen)
 	}
-	if egress == nil || egress.Category != "ai-api-egress" || egress.IsAI != 1 {
+	if egress == nil || egress.Category != "ai-api-egress" {
 		t.Errorf("aider egress misclassified: %+v", egress)
 	}
 }

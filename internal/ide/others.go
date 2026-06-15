@@ -43,6 +43,9 @@ func scanZed(h homes.Home, r paths.Roots) []Plugin {
 			id := firstNonEmptyStr(fields["id"], e.Name())
 			name := firstNonEmptyStr(fields["name"], id)
 			isAI, cat := classifyByName(id + " " + name)
+			if !isAI {
+				continue // AI tools only — skip non-AI extensions
+			}
 			p := Plugin{
 				Editor:       "zed",
 				EditorFamily: "zed",
@@ -52,7 +55,7 @@ func scanZed(h homes.Home, r paths.Roots) []Plugin {
 				InstallPath:  filepath.Join(dir, e.Name()),
 				ManifestPath: manifest,
 			}
-			out = append(out, p.finish(h, isAI, cat))
+			out = append(out, p.finish(h, cat))
 		}
 	}
 	return out
@@ -135,6 +138,9 @@ func scanSublime(h homes.Home, r paths.Roots) []Plugin {
 				manifest = ""
 			}
 			isAI, cat := classifyByName(e.Name())
+			if !isAI {
+				continue // AI tools only — skip non-AI packages
+			}
 			p := Plugin{
 				Editor:       "sublime",
 				EditorFamily: "sublime",
@@ -144,7 +150,7 @@ func scanSublime(h homes.Home, r paths.Roots) []Plugin {
 				InstallPath:  filepath.Join(dir, e.Name()),
 				ManifestPath: manifest,
 			}
-			out = append(out, p.finish(h, isAI, cat))
+			out = append(out, p.finish(h, cat))
 		}
 	}
 	return out
@@ -171,6 +177,9 @@ func scanVim(h homes.Home) []Plugin {
 				continue
 			}
 			isAI, cat := classifyByName(e.Name())
+			if !isAI {
+				continue // AI tools only — skip non-AI plugins
+			}
 			p := Plugin{
 				Editor:       d.editor,
 				EditorFamily: "vim",
@@ -178,7 +187,7 @@ func scanVim(h homes.Home) []Plugin {
 				Name:         e.Name(),
 				InstallPath:  filepath.Join(d.path, e.Name()),
 			}
-			out = append(out, p.finish(h, isAI, cat))
+			out = append(out, p.finish(h, cat))
 		}
 	}
 	return out
@@ -206,6 +215,9 @@ func scanEmacs(h homes.Home) []Plugin {
 				continue
 			}
 			isAI, cat := classifyByName(name)
+			if !isAI {
+				continue // AI tools only — skip non-AI packages
+			}
 			p := Plugin{
 				Editor:       "emacs",
 				EditorFamily: "emacs",
@@ -214,7 +226,7 @@ func scanEmacs(h homes.Home) []Plugin {
 				Version:      version,
 				InstallPath:  filepath.Join(dir, e.Name()),
 			}
-			out = append(out, p.finish(h, isAI, cat))
+			out = append(out, p.finish(h, cat))
 		}
 	}
 	return out

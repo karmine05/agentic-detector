@@ -12,17 +12,16 @@ import (
 
 // Plugin is one installed editor extension/plugin.
 type Plugin struct {
-	UID, Username, HomeDir string
-	Editor                 string // vscode, cursor, intellij-idea, zed, sublime, neovim, emacs, ...
-	EditorFamily           string // vscode | jetbrains | zed | sublime | vim | emacs
-	PluginID               string
-	Name                   string
-	Version                string
-	Publisher              string
-	InstallPath            string
-	ManifestPath           string
-	IsAI                   int
-	AICategory             string
+	UID, Username string
+	Editor        string // vscode, cursor, intellij-idea, zed, sublime, neovim, emacs, ...
+	EditorFamily  string // vscode | jetbrains | zed | sublime | vim | emacs
+	PluginID      string
+	Name          string
+	Version       string
+	Publisher     string
+	InstallPath   string
+	ManifestPath  string
+	AICategory    string
 }
 
 // Scan returns every plugin discovered under the given home directory.
@@ -38,13 +37,12 @@ func Scan(h homes.Home) []Plugin {
 	return out
 }
 
-// finish stamps ownership and classification onto a plugin row.
-func (p Plugin) finish(h homes.Home, isAI bool, cat string) Plugin {
-	p.UID, p.Username, p.HomeDir = h.UID, h.Username, h.Dir
-	if isAI {
-		p.IsAI = 1
-		p.AICategory = cat
-	}
+// finish stamps ownership and the AI classification onto a plugin row. It is
+// only called for AI-classified plugins — non-AI plugins are skipped at the
+// scanner so the table surfaces AI tools only.
+func (p Plugin) finish(h homes.Home, cat string) Plugin {
+	p.UID, p.Username = h.UID, h.Username
+	p.AICategory = cat
 	return p
 }
 

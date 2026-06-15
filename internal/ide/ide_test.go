@@ -41,14 +41,15 @@ func TestScanVSCodeFamily(t *testing.T) {
 	if !ok {
 		t.Fatalf("github.copilot not found; got %d plugins", len(got))
 	}
-	if cop.IsAI != 1 || cop.AICategory == "" {
-		t.Errorf("copilot should be classified AI, got is_ai=%d cat=%q", cop.IsAI, cop.AICategory)
+	if cop.AICategory == "" {
+		t.Errorf("copilot should be classified AI, got cat=%q", cop.AICategory)
 	}
 	if cop.Version != "1.250.0" || cop.Publisher != "github" || cop.EditorFamily != "vscode" {
 		t.Errorf("copilot metadata wrong: %+v", cop)
 	}
-	if pr, ok := by["esbenp.prettier-vscode"]; !ok || pr.IsAI != 0 {
-		t.Errorf("prettier should be present and non-AI: %+v (ok=%v)", pr, ok)
+	// The table surfaces AI tools only: a non-AI extension (Prettier) must not appear.
+	if _, ok := by["esbenp.prettier-vscode"]; ok {
+		t.Error("non-AI prettier should not be surfaced (AI-only table)")
 	}
 	if _, ok := by["old.ext"]; ok {
 		t.Error("obsolete extension old.ext should have been skipped")

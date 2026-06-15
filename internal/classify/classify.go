@@ -23,7 +23,6 @@ type knowledge struct {
 	NameRegex       []string          `json:"name_regex"`
 	CmdlineMarkers  map[string]string `json:"cmdline_markers"`
 	LocalPorts      map[string]string `json:"local_ports"`
-	AIAPIHostsList  []string          `json:"ai_api_hosts"`
 	MCPCapabilities map[string]string `json:"mcp_capabilities"`
 }
 
@@ -93,9 +92,6 @@ func LocalPortService(port int) (string, bool) {
 	svc, ok := data.LocalPorts[strconv.Itoa(port)]
 	return svc, ok
 }
-
-// AIAPIHosts returns the known hosted AI/LLM API hostnames.
-func AIAPIHosts() []string { return data.AIAPIHostsList }
 
 // MCPCapabilities infers the capability tags of an MCP server from its launch
 // hay (command + args + server name, lowercased). The extension never connects

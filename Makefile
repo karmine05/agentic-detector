@@ -91,7 +91,7 @@ run-root: macos
 # One-shot sanity query (non-interactive).
 osq-verify: macos
 	osqueryi $(OSQ_FLAGS) \
-	  "SELECT kind, count(*) AS rows, sum(running) AS running FROM agentic_software GROUP BY kind"
+	  "SELECT kind, count(*) AS rows, sum(running) AS running FROM ai_tools GROUP BY kind"
 
 ## ---- release artifacts ----
 # `make dist` builds every platform binary and writes SHA256SUMS over them.

@@ -57,9 +57,8 @@ func SHA256Bytes(b []byte) string {
 // platforms where Unix mode bits are not meaningful (Windows), so callers don't
 // emit false "world-readable" signals there.
 type Perm struct {
-	Mode          string // octal, e.g. "0644" ("" when unknown)
-	WorldReadable bool   // group OR other has read
-	WorldWritable bool   // group OR other has write
+	WorldReadable bool // group OR other has read
+	WorldWritable bool // group OR other has write
 	Known         bool
 }
 
@@ -74,31 +73,10 @@ func Stat(path string) Perm {
 	}
 	m := fi.Mode().Perm()
 	return Perm{
-		Mode:          "0" + octal(uint32(m)),
 		WorldReadable: m&0o044 != 0,
 		WorldWritable: m&0o022 != 0,
 		Known:         true,
 	}
-}
-
-func octal(v uint32) string {
-	if v == 0 {
-		return "000"
-	}
-	const digits = "01234567"
-	var buf [11]byte
-	i := len(buf)
-	for v > 0 {
-		i--
-		buf[i] = digits[v&7]
-		v >>= 3
-	}
-	// pad to at least 3 digits for a readable "644"
-	for len(buf)-i < 3 {
-		i--
-		buf[i] = '0'
-	}
-	return string(buf[i:])
 }
 
 // Exists reports whether path is an existing regular (non-directory) file.
