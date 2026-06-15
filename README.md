@@ -153,9 +153,7 @@ Outputs (named exactly as Fleet expects):
 ```
 build/agentic_detector_macos.ext             # universal (amd64 + arm64)
 build/agentic_detector_linux.ext             # amd64
-build/agentic_detector_linux_arm64.ext
 build/agentic_detector_windows.ext.exe       # amd64
-build/agentic_detector_windows_arm64.ext.exe
 ```
 
 Sign the binaries before distributing or running a downloaded copy — see
@@ -171,9 +169,7 @@ the five platform binaries plus `SHA256SUMS`. Downloading needs the
 |---|---|
 | macOS (Intel + Apple Silicon) | `agentic_detector_macos.ext` (universal) |
 | Linux x86-64 | `agentic_detector_linux.ext` |
-| Linux ARM64 | `agentic_detector_linux_arm64.ext` |
 | Windows x86-64 | `agentic_detector_windows.ext.exe` |
-| Windows ARM64 | `agentic_detector_windows_arm64.ext.exe` |
 
 The binaries are **not code-signed**, so a downloaded copy is quarantined —
 clear it (below) or sign it ([Signing & trust](#signing--trust)).
@@ -181,27 +177,27 @@ clear it (below) or sign it ([Signing & trust](#signing--trust)).
 **macOS** — download → clear quarantine → run:
 
 ```bash
-gh release download v0.1.0 -R karmine05/agentic-detector -p 'agentic_detector_macos.ext'
+gh release download v0.2.0 -R karmine05/agentic-detector -p 'agentic_detector_macos.ext'
 xattr -d com.apple.quarantine agentic_detector_macos.ext   # unsigned → clear quarantine
 osqueryi --allow_unsafe --extension "$PWD/agentic_detector_macos.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
   "SELECT kind, count(*) FROM ai_tools GROUP BY kind"
 ```
 
-**Linux** (use `_linux_arm64.ext` on ARM):
+**Linux**:
 
 ```bash
-gh release download v0.1.0 -R karmine05/agentic-detector -p 'agentic_detector_linux.ext'
+gh release download v0.2.0 -R karmine05/agentic-detector -p 'agentic_detector_linux.ext'
 chmod +x agentic_detector_linux.ext
 osqueryi --allow_unsafe --extension "$PWD/agentic_detector_linux.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
   "SELECT kind, count(*) FROM ai_tools GROUP BY kind"
 ```
 
-**Windows** (PowerShell; use `_windows_arm64.ext.exe` on ARM):
+**Windows** (PowerShell):
 
 ```powershell
-gh release download v0.1.0 -R karmine05/agentic-detector -p 'agentic_detector_windows.ext.exe'
+gh release download v0.2.0 -R karmine05/agentic-detector -p 'agentic_detector_windows.ext.exe'
 Unblock-File agentic_detector_windows.ext.exe
 osqueryi.exe --allow_unsafe --extension "$PWD\agentic_detector_windows.ext.exe" `
   --extensions_require=agentic_detector --extensions_timeout=10 `
@@ -211,7 +207,7 @@ osqueryi.exe --allow_unsafe --extension "$PWD\agentic_detector_windows.ext.exe" 
 Verify integrity before running:
 
 ```bash
-gh release download v0.1.0 -R karmine05/agentic-detector -p SHA256SUMS
+gh release download v0.2.0 -R karmine05/agentic-detector -p SHA256SUMS
 shasum -a 256 -c SHA256SUMS      # Linux: sha256sum -c SHA256SUMS
 ```
 
@@ -302,7 +298,7 @@ auto-update server and autoloads them. (Fleet Premium.)
    fleetctl updates add --path <TUF_repo> \
      --target build/agentic_detector_macos.ext \
      --name extensions/agentic_detector_macos --platform macos --version 0.1.0
-   # repeat for linux / linux-arm64 / windows / windows-arm64
+   # repeat for linux / windows
    ```
 
 2. Reference them in `agent_options` (gitops or `fleetctl apply`):
@@ -310,11 +306,9 @@ auto-update server and autoloads them. (Fleet Premium.)
    ```yaml
    agent_options:
      extensions:
-       agentic_detector_macos:         { channel: 'stable', platform: 'macos' }
-       agentic_detector_linux:         { channel: 'stable', platform: 'linux' }
-       agentic_detector_linux_arm64:   { channel: 'stable', platform: 'linux-arm64' }
-       agentic_detector_windows:       { channel: 'stable', platform: 'windows' }
-       agentic_detector_windows_arm64: { channel: 'stable', platform: 'windows-arm64' }
+       agentic_detector_macos:   { channel: 'stable', platform: 'macos' }
+       agentic_detector_linux:   { channel: 'stable', platform: 'linux' }
+       agentic_detector_windows: { channel: 'stable', platform: 'windows' }
    ```
 
 3. Query like any built-in table (live query or scheduled query). Filtering on

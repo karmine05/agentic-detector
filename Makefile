@@ -5,9 +5,7 @@
 #
 #   build/agentic_detector_macos.ext          (universal: amd64 + arm64)
 #   build/agentic_detector_linux.ext          (amd64)
-#   build/agentic_detector_linux_arm64.ext    (arm64)
 #   build/agentic_detector_windows.ext.exe    (amd64)
-#   build/agentic_detector_windows_arm64.ext.exe (arm64)
 
 BINARY  := agentic_detector
 PKG     := ./cmd/agentic_detector
@@ -55,14 +53,12 @@ macos:
 linux:
 	@mkdir -p $(BUILD)
 	GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BUILD)/$(BINARY)_linux.ext $(PKG)
-	GOOS=linux GOARCH=arm64 $(GOBUILD) -o $(BUILD)/$(BINARY)_linux_arm64.ext $(PKG)
-	@echo "built $(BUILD)/$(BINARY)_linux.ext and _linux_arm64.ext"
+	@echo "built $(BUILD)/$(BINARY)_linux.ext"
 
 windows:
 	@mkdir -p $(BUILD)
 	GOOS=windows GOARCH=amd64 $(GOBUILD) -o $(BUILD)/$(BINARY)_windows.ext.exe $(PKG)
-	GOOS=windows GOARCH=arm64 $(GOBUILD) -o $(BUILD)/$(BINARY)_windows_arm64.ext.exe $(PKG)
-	@echo "built $(BUILD)/$(BINARY)_windows.ext.exe and _windows_arm64.ext.exe"
+	@echo "built $(BUILD)/$(BINARY)_windows.ext.exe"
 
 # --- signing (run after build, before distribution) ---
 # osquery refuses to autoload extensions that are world-writable or not owned by
@@ -104,12 +100,7 @@ osq-verify: macos
 DOCKER      ?= docker
 OSQUERY_IMG ?= osquery/osquery:latest
 UNAME_S     := $(shell uname -s 2>/dev/null)
-UNAME_M     := $(shell uname -m 2>/dev/null)
-ifeq ($(UNAME_M),aarch64)
-EXT_LINUX_HOST := $(CURDIR)/$(BUILD)/$(BINARY)_linux_arm64.ext
-else
 EXT_LINUX_HOST := $(CURDIR)/$(BUILD)/$(BINARY)_linux.ext
-endif
 
 # Native osqueryi when on Linux; otherwise load the amd64 build inside a
 # linux/amd64 osquery container (works on a macOS Docker host via emulation).
