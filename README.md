@@ -2,8 +2,8 @@
 
 A cross-platform **osquery extension** (Go) that gives Fleet visibility into the
 *agentic software layer* that traditional EDR/MDM and osquery's built-in tables
-miss: **MCP servers, AI agent CLIs, AI desktop apps, IDE plugins, live AI/MCP
-network sockets, and agent instruction files**.
+miss: **MCP servers, AI agent CLIs, AI desktop apps, AI browser extensions, IDE plugins, live AI/MCP
+network sockets, and agent instruction files**. (AI-native browsers like Comet and Dia appear as `apps`.)
 
 Beyond inventory, every row carries a **security posture**: a `sha256` content
 fingerprint for change detection / threat-intel matching, and `risk_flags`
@@ -32,6 +32,7 @@ not just the daemon account's.
 | `apps` | An installed AI desktop app (Claude Desktop, ChatGPT, Ollama, LM Studio, Jan, GPT4All, Msty, AnythingLLM, Perplexity, Cursor, Windsurf, Antigravity). |
 | `sockets` | A live AI/MCP network socket — local inference/MCP listener or outbound AI/MCP egress. |
 | `agent_instruction` | An agent instruction file the AI auto-loads and obeys (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.github/copilot-instructions.md`, Cursor `.mdc` rules, …) — a prompt-injection / agent-hijack surface. |
+| `browser_extension` | An AI extension installed in a Chromium-family browser (Chrome, Edge, Brave, Arc, Opera, Vivaldi, Chromium, Comet, Dia) or a Gecko-family browser (Firefox, Zen, LibreWolf, Waterfox). |
 
 ### Columns
 
@@ -68,6 +69,8 @@ Every row is an AI tool by construction (collectors emit only AI/agent artifacts
 | `injection_markers` | agent_instruction | Content carries prompt-injection / exfiltration phrases (see `detail.markers`) |
 | `hidden_unicode` | agent_instruction | Contains zero-width / Unicode-tag characters used to smuggle instructions |
 | `world_writable` | agent_instruction | File is world-writable — any local user can hijack the agent |
+| `broad_host_permissions` | browser_extension | Manifest grants `<all_urls>` / `*://*/*` host access — can read/modify every site (AI exfiltration surface) |
+| `sideloaded_unverified` | browser_extension | Installed outside the store (Chromium: not `from_webstore` / unpacked / policy-forced; Gecko: unsigned/temporary or `foreignInstall`) — no store review |
 
 Capability inference is **static** (from the known-server KB): the extension never connects to an MCP server to enumerate live tools, because that would mean executing untrusted code.
 
@@ -134,6 +137,7 @@ run (constraint pushdown).
 
 ## How detection works
 
+- **Browser extensions** — per-profile enumeration across Chromium (`Extensions/<id>/<version>/manifest.json` unioned with the profile's `Preferences`/`Secure Preferences` registry for install provenance and unpacked recovery) and Gecko (`extensions.json` + the `.xpi` archive). i18n (`__MSG_*`) names are resolved from `_locales`. Capability/permission risk is read statically from the manifest — no extension is loaded or executed.
 - **Config parsing** — JSON/YAML across every known MCP client; `command`⇒local, `url`/`serverUrl`⇒remote; VS Code's `servers` key vs everyone else's `mcpServers`; Zed's nested `command` object; per-project `.mcp.json`/`.cursor`/`.vscode`/`.roo` via a bounded walk of common dev roots.
 - **Process/connection snapshot** — one `gopsutil` snapshot per query feeds liveness (`running`/`pid`), listening-port fill, and the `sockets`-kind rows.
 - **Classification KB** — `internal/classify/kb.json` (embedded) maps known extension ids, process-cmdline markers, inference ports, and MCP-server capability tags to categories. Egress is attributed **process-first** (an AI/agent process's connections are AI traffic — caught by cmdline markers, not a hostname list) before any DNS heuristic; no brittle IP allowlists.
