@@ -57,7 +57,12 @@
     "(?i)roo[- ]?code",
     "(?i)amazon ?q",
     "(?i)antigravity",
-    "(?i)\\bollama\\b"
+    "(?i)\\bollama\\b",
+    "(?i)\\bmonica\\b",
+    "(?i)\\bsider\\b",
+    "(?i)perplexity",
+    "(?i)\\bharpa\\b",
+    "(?i)\\bmerlin\\b"
   ],
   "cmdline_markers": {
     "modelcontextprotocol": "mcp-server",
@@ -110,5 +115,11 @@
     "mcp-server-docker": "shell-exec,infra-control",
     "server-memory": "memory",
     "server-sequential-thinking": "memory"
+  },
+  "browser_extension_ids": {
+    "mfgnpcdebmgmmbjmhmboieiipghabkjf": "chat",
+    "ofpnmcalabcbjgholdjcjblkibolbppb": "ai-assistant",
+    "dhoenijjpgpeimemopealfcbiecgceodl": "ai-assistant",
+    "cifagnnjkogmgddhpamfjdpmligkmmgi": "ai-assistant"
   }
 }
