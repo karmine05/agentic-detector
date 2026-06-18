@@ -39,6 +39,8 @@ func TestChromiumSideloaded(t *testing.T) {
 		{-1, 10, true}, // external/policy
 		{-1, 5, false}, // component
 		{-1, 0, false}, // both unknown -> conservative, no flag
+		{1, 4, true},   // store-flagged but unpacked location -> still anomalous
+		{1, 10, true},  // store-flagged but external/policy location -> still anomalous
 	}
 	for _, c := range cases {
 		if got := chromiumSideloaded(c.fw, c.loc); got != c.want {
