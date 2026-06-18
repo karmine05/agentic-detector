@@ -159,8 +159,14 @@ func geckoRoots(r paths.Roots) []browserRoot {
 	default:
 		return nil
 	}
+	// linux is handled above; here mac/win columns drive the path. Skip any
+	// browser with no subpath on this OS (matches chromiumRoots' behavior).
 	for _, s := range geckoSubs {
-		out = append(out, browserRoot{s.label, filepath.Join(base, filepath.FromSlash(macOrWin(s)))})
+		sub := macOrWin(s)
+		if sub == "" {
+			continue
+		}
+		out = append(out, browserRoot{s.label, filepath.Join(base, filepath.FromSlash(sub))})
 	}
 	return out
 }

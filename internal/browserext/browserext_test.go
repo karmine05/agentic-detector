@@ -292,6 +292,9 @@ func TestScan(t *testing.T) {
 		}
 		if e.Engine == "gecko" && e.Browser == "firefox" {
 			sawFirefox = true
+			if e.Username != "tester" {
+				t.Errorf("gecko ownership not stamped: %+v", e)
+			}
 		}
 	}
 	if !sawChrome {
