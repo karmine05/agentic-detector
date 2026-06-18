@@ -32,7 +32,7 @@ not just the daemon account's.
 | `apps` | An installed AI desktop app (Claude Desktop, ChatGPT, Ollama, LM Studio, Jan, GPT4All, Msty, AnythingLLM, Perplexity, Cursor, Windsurf, Antigravity). |
 | `sockets` | A live AI/MCP network socket — local inference/MCP listener or outbound AI/MCP egress. |
 | `agent_instruction` | An agent instruction file the AI auto-loads and obeys (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.github/copilot-instructions.md`, Cursor `.mdc` rules, …) — a prompt-injection / agent-hijack surface. |
-| `browser_extension` | An AI extension installed in a Chromium-family browser (Chrome, Edge, Brave, Arc, Opera, Vivaldi, Chromium, Comet, Dia) or a Gecko-family browser (Firefox, Zen, LibreWolf, Waterfox). |
+| `browser_extension` | An AI extension installed in a Chromium-family browser (Chrome, Edge, Brave, Arc, Opera, Vivaldi, Chromium, Comet, Dia) or a Gecko-family browser (Firefox, Zen, LibreWolf, Waterfox). Comet and Dia browser applications themselves also surface as `apps` rows. |
 
 ### Columns
 
