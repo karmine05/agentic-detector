@@ -128,6 +128,19 @@ SELECT name, risk_flags, json_extract(detail, '$.permission_mode') AS mode
 -- instruction files flagged for prompt injection or hidden unicode
 SELECT name, path, risk_flags, json_extract(detail, '$.markers') AS markers
   FROM ai_tools WHERE kind = 'agent_instruction' AND risk_flags != '';
+
+-- AI browser extensions, with the browser and profile they live in
+SELECT name, source AS browser, category,
+       json_extract(detail, '$.engine')  AS engine,
+       json_extract(detail, '$.profile') AS profile, version
+  FROM ai_tools WHERE kind = 'browser_extension';
+
+-- risky browser extensions: read-every-site host access or installed outside the store
+SELECT name, source AS browser, risk_flags,
+       json_extract(detail, '$.from_webstore') AS from_webstore,
+       json_extract(detail, '$.signed_state')  AS signed_state
+  FROM ai_tools
+  WHERE kind = 'browser_extension' AND risk_flags != '';
 ```
 
 `.tables`/`.schema`/`.mode` are osquery shell dot-commands — they only work
