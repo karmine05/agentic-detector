@@ -16,6 +16,7 @@ func TestMatchKnown(t *testing.T) {
 		{[]string{"Google Chrome.app", "Google Chrome"}, false, "", 0},
 		{[]string{"Comet.app", "Comet", "ai.perplexity.comet"}, true, "comet", 0},
 		{[]string{"Dia.app", "Dia", "company.thebrowser.dia"}, true, "dia", 0},
+		{[]string{"Perplexity.app", "Perplexity", "ai.perplexity.macos"}, true, "perplexity", 0},
 	}
 	for _, c := range cases {
 		k, ok := matchKnown(c.tokens...)
