@@ -194,7 +194,7 @@ clear it (below) or sign it ([Signing & trust](#signing--trust)).
 **macOS** — download → clear quarantine → run:
 
 ```bash
-gh release download v0.2.0 -R karmine05/agentic-detector -p 'agentic_detector_macos.ext'
+gh release download v0.3.0 -R karmine05/agentic-detector -p 'agentic_detector_macos.ext'
 xattr -d com.apple.quarantine agentic_detector_macos.ext   # unsigned → clear quarantine
 osqueryi --allow_unsafe --extension "$PWD/agentic_detector_macos.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
@@ -204,7 +204,7 @@ osqueryi --allow_unsafe --extension "$PWD/agentic_detector_macos.ext" \
 **Linux**:
 
 ```bash
-gh release download v0.2.0 -R karmine05/agentic-detector -p 'agentic_detector_linux.ext'
+gh release download v0.3.0 -R karmine05/agentic-detector -p 'agentic_detector_linux.ext'
 chmod +x agentic_detector_linux.ext
 osqueryi --allow_unsafe --extension "$PWD/agentic_detector_linux.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
@@ -214,7 +214,7 @@ osqueryi --allow_unsafe --extension "$PWD/agentic_detector_linux.ext" \
 **Windows** (PowerShell):
 
 ```powershell
-gh release download v0.2.0 -R karmine05/agentic-detector -p 'agentic_detector_windows.ext.exe'
+gh release download v0.3.0 -R karmine05/agentic-detector -p 'agentic_detector_windows.ext.exe'
 Unblock-File agentic_detector_windows.ext.exe
 osqueryi.exe --allow_unsafe --extension "$PWD\agentic_detector_windows.ext.exe" `
   --extensions_require=agentic_detector --extensions_timeout=10 `
@@ -224,7 +224,7 @@ osqueryi.exe --allow_unsafe --extension "$PWD\agentic_detector_windows.ext.exe" 
 Verify integrity before running:
 
 ```bash
-gh release download v0.2.0 -R karmine05/agentic-detector -p SHA256SUMS
+gh release download v0.3.0 -R karmine05/agentic-detector -p SHA256SUMS
 shasum -a 256 -c SHA256SUMS      # Linux: sha256sum -c SHA256SUMS
 ```
 
@@ -314,7 +314,7 @@ auto-update server and autoloads them. (Fleet Premium.)
    ```bash
    fleetctl updates add --path <TUF_repo> \
      --target build/agentic_detector_macos.ext \
-     --name extensions/agentic_detector_macos --platform macos --version 0.1.0
+     --name extensions/agentic_detector_macos --platform macos --version 0.3.0
    # repeat for linux / windows
    ```
 

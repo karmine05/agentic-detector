@@ -10,7 +10,7 @@
 BINARY  := agentic_detector
 PKG     := ./cmd/agentic_detector
 BUILD   := build
-VERSION ?= 0.1.0
+VERSION ?= 0.3.0
 LDFLAGS := -s -w -X main.version=$(VERSION)
 GOBUILD := CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)"
 
