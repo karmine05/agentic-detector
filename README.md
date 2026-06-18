@@ -179,7 +179,7 @@ Sign the binaries before distributing or running a downloaded copy — see
 ## Download a prebuilt binary
 
 Each [release](https://github.com/karmine05/agentic-detector/releases) attaches
-the five platform binaries plus `SHA256SUMS`. Downloading needs the
+the three platform binaries plus `SHA256SUMS`. Downloading needs the
 [`gh`](https://cli.github.com) CLI (the repo is private).
 
 | Platform | Asset |
