@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/karmine05/agentic-detector/internal/homes"
+	"github.com/karmine05/agentic-detector/internal/paths"
 )
 
 func TestHasBroadHostPerms(t *testing.T) {
@@ -240,5 +241,63 @@ func TestGeckoProfilesINI(t *testing.T) {
 	}
 	if filepath.Base(profs[0].path) != "abcd.default-release" {
 		t.Errorf("profile path=%q want .../abcd.default-release", profs[0].path)
+	}
+}
+
+func TestScan(t *testing.T) {
+	home := t.TempDir()
+	r := paths.For(home)
+
+	// Drop a Chrome profile fixture at the path the package itself computes.
+	var chromeRoot string
+	for _, br := range chromiumRoots(r) {
+		if br.label == "chrome" {
+			chromeRoot = br.dir
+		}
+	}
+	if chromeRoot == "" {
+		t.Fatal("chromiumRoots produced no chrome entry for this OS")
+	}
+	profile := filepath.Join(chromeRoot, "Default")
+	writeFile(t, filepath.Join(profile, "Extensions", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "1.0.0", "manifest.json"),
+		`{"name":"Claude for Chrome","version":"1.0.0","manifest_version":3,"host_permissions":["<all_urls>"]}`)
+	writeFile(t, filepath.Join(profile, "Preferences"),
+		`{"extensions":{"settings":{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa":{"from_webstore":true,"location":1}}}}`)
+
+	// Drop a Firefox profile fixture similarly.
+	var ffRoot string
+	for _, br := range geckoRoots(r) {
+		if br.label == "firefox" {
+			ffRoot = br.dir
+		}
+	}
+	if ffRoot == "" {
+		t.Fatal("geckoRoots produced no firefox entry for this OS")
+	}
+	ffProfile := filepath.Join(ffRoot, "Profiles", "xxxx.default")
+	writeFile(t, filepath.Join(ffProfile, "extensions.json"),
+		`{"addons":[{"id":"copilot@x","type":"extension","version":"1.0","location":"app-profile","signedState":1,"defaultLocale":{"name":"Copilot"},"userPermissions":{"origins":["https://github.com/*"]}}]}`)
+	writeFile(t, filepath.Join(ffRoot, "profiles.ini"),
+		"[Profile0]\nIsRelative=1\nPath=Profiles/xxxx.default\n")
+
+	got := Scan(homes.Home{Dir: home, UID: "501", Username: "tester"})
+
+	var sawChrome, sawFirefox bool
+	for _, e := range got {
+		if e.Engine == "chromium" && e.Browser == "chrome" {
+			sawChrome = true
+			if e.Username != "tester" {
+				t.Errorf("ownership not stamped: %+v", e)
+			}
+		}
+		if e.Engine == "gecko" && e.Browser == "firefox" {
+			sawFirefox = true
+		}
+	}
+	if !sawChrome {
+		t.Errorf("Scan missed the chrome extension; got %+v", got)
+	}
+	if !sawFirefox {
+		t.Errorf("Scan missed the firefox extension; got %+v", got)
 	}
 }
