@@ -1,6 +1,8 @@
 package browserext
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -171,3 +173,72 @@ func TestCollectChromiumProfile(t *testing.T) {
 }
 
 func contains(haystack, needle string) bool { return strings.Contains(haystack, needle) }
+
+func writeXPI(t *testing.T, path, manifestJSON string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.Create("manifest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte(manifestJSON)); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCollectGeckoProfile(t *testing.T) {
+	profile := t.TempDir()
+	aiID := "ai-helper@example.com"
+
+	extJSON := `{"addons":[
+	  {"id":"ai-helper@example.com","type":"extension","version":"1.2.0","location":"app-profile","signedState":0,"foreignInstall":false,"defaultLocale":{"name":"Perplexity Helper"},"userPermissions":{"origins":["<all_urls>"]}},
+	  {"id":"darktheme@example.com","type":"theme","version":"1.0","location":"app-profile","defaultLocale":{"name":"Dark AI Theme"}},
+	  {"id":"builtin@mozilla.org","type":"extension","version":"1.0","location":"app-system-defaults","defaultLocale":{"name":"Copilot Builtin"}}
+	]}`
+	writeFile(t, filepath.Join(profile, "extensions.json"), extJSON)
+	writeXPI(t, filepath.Join(profile, "extensions", aiID+".xpi"),
+		`{"name":"Perplexity Helper","version":"1.2.0","host_permissions":["<all_urls>"]}`)
+
+	got := collectGeckoProfile(profile, "firefox", "default-release", homes.Home{Username: "tester"})
+
+	if len(got) != 1 {
+		t.Fatalf("got %d extensions want 1 (theme + builtin must be skipped): %+v", len(got), got)
+	}
+	e := got[0]
+	if e.ID != aiID || e.Engine != "gecko" || e.Browser != "firefox" {
+		t.Errorf("metadata wrong: %+v", e)
+	}
+	if e.SHA256 == "" {
+		t.Error("xpi hash empty")
+	}
+	for _, want := range []string{"broad_host_permissions", "sideloaded_unverified"} {
+		if !contains(e.RiskFlags, want) {
+			t.Errorf("RiskFlags=%q missing %q", e.RiskFlags, want)
+		}
+	}
+}
+
+func TestGeckoProfilesINI(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "Profiles", "abcd.default-release", "extensions.json"), `{"addons":[]}`)
+	writeFile(t, filepath.Join(root, "profiles.ini"),
+		"[Profile0]\nName=default-release\nIsRelative=1\nPath=Profiles/abcd.default-release\nDefault=1\n\n[General]\nVersion=2\n")
+
+	profs := geckoProfiles(root)
+	if len(profs) != 1 {
+		t.Fatalf("geckoProfiles found %d want 1: %+v", len(profs), profs)
+	}
+	if filepath.Base(profs[0].path) != "abcd.default-release" {
+		t.Errorf("profile path=%q want .../abcd.default-release", profs[0].path)
+	}
+}
