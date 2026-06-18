@@ -1,6 +1,6 @@
 // Package tables exposes a single, unified osquery table — ai_tools —
 // covering every AI-tool kind (MCP servers, IDE plugins, AI agent
-// CLIs, AI desktop apps, live AI/MCP sockets, and agent instruction files)
+// CLIs, AI desktop apps, live AI/MCP sockets, agent instruction files, and browser extensions)
 // through one schema with a `kind` discriminator, security `risk_flags` and
 // `sha256` columns, and a JSON `detail` column for kind-specific fields.
 //
@@ -45,7 +45,7 @@ var allKinds = []string{"mcp_server", "ide_plugins", "agents", "apps", "sockets"
 // columns is the unified schema. Common fields are first-class; everything
 // kind-specific lives in `detail` (compact JSON, empty fields omitted).
 var columns = []string{
-	"kind",       // mcp_server | ide_plugins | agents | apps | sockets | agent_instruction
+	"kind",       // mcp_server | ide_plugins | agents | apps | sockets | agent_instruction | browser_extension
 	"name",       // server/plugin/agent/app/process/instruction-file name
 	"identifier", // plugin_id | bundle_id | mcp server name | agent binary | socket service
 	"category",   // classification bucket (coding-assistant, agent-runtime, ai-api-egress, ...)

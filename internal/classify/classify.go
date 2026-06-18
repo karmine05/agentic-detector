@@ -68,7 +68,7 @@ func BrowserExtension(id, displayName string) (bool, string) {
 	if cat, ok := data.BrowserExtIDs[strings.ToLower(id)]; ok {
 		return true, cat
 	}
-	return matchName(id + " " + displayName)
+	return matchName(strings.ToLower(id) + " " + displayName)
 }
 
 // ByName classifies any free-form name/id via the regex heuristics.

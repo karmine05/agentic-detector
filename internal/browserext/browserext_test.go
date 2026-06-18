@@ -229,6 +229,35 @@ func TestCollectGeckoProfile(t *testing.T) {
 	}
 }
 
+func TestGeckoXPIHostPermFallback(t *testing.T) {
+	profile := t.TempDir()
+	addonID := "claude-for-firefox@example.com"
+
+	// extensions.json: one extension, NO userPermissions block (origins will be empty).
+	// signedState:1 means signed → NOT sideloaded.
+	extJSON := `{"addons":[
+	  {"id":"claude-for-firefox@example.com","type":"extension","version":"1.0.0","location":"app-profile","signedState":1,"foreignInstall":false,"defaultLocale":{"name":"Claude for Firefox"}}
+	]}`
+	writeFile(t, filepath.Join(profile, "extensions.json"), extJSON)
+
+	// XPI whose manifest.json carries host_permissions — the fallback path reads this.
+	writeXPI(t, filepath.Join(profile, "extensions", addonID+".xpi"),
+		`{"name":"Claude for Firefox","version":"1.0.0","host_permissions":["<all_urls>"]}`)
+
+	got := collectGeckoProfile(profile, "firefox", "default", homes.Home{Username: "t"})
+
+	if len(got) != 1 {
+		t.Fatalf("got %d extensions want 1: %+v", len(got), got)
+	}
+	e := got[0]
+	if !contains(e.RiskFlags, "broad_host_permissions") {
+		t.Errorf("RiskFlags=%q missing broad_host_permissions (xpi fallback not read)", e.RiskFlags)
+	}
+	if contains(e.RiskFlags, "sideloaded_unverified") {
+		t.Errorf("RiskFlags=%q contains sideloaded_unverified but extension is signed", e.RiskFlags)
+	}
+}
+
 func TestGeckoProfilesINI(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "Profiles", "abcd.default-release", "extensions.json"), `{"addons":[]}`)
