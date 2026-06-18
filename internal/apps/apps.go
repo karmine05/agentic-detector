@@ -47,6 +47,8 @@ func knownApps() []knownApp {
 		{"gpt4all", []string{"gpt4all"}, []string{"gpt4all"}, 0},
 		{"msty", []string{"msty"}, []string{"msty"}, 0},
 		{"anythingllm", []string{"anythingllm", "anything llm"}, []string{"anythingllm"}, 0},
+		{"comet", []string{"comet.app", "comet "}, []string{"comet"}, 0}, // Perplexity Comet (AI browser)
+		{"dia", []string{"dia.app", "dia "}, []string{"dia"}, 0},         // Browser Company Dia (AI browser)
 		{"perplexity", []string{"perplexity"}, []string{"perplexity"}, 0},
 		{"cursor", []string{"cursor"}, []string{"cursor"}, 0},
 		{"windsurf", []string{"windsurf"}, []string{"windsurf"}, 0},

@@ -1,6 +1,6 @@
 // Package tables exposes a single, unified osquery table — ai_tools —
 // covering every AI-tool kind (MCP servers, IDE plugins, AI agent
-// CLIs, AI desktop apps, live AI/MCP sockets, and agent instruction files)
+// CLIs, AI desktop apps, live AI/MCP sockets, agent instruction files, and browser extensions)
 // through one schema with a `kind` discriminator, security `risk_flags` and
 // `sha256` columns, and a JSON `detail` column for kind-specific fields.
 //
@@ -24,11 +24,13 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/osquery/osquery-go/plugin/table"
 
 	"github.com/karmine05/agentic-detector/internal/agents"
 	"github.com/karmine05/agentic-detector/internal/apps"
+	"github.com/karmine05/agentic-detector/internal/browserext"
 	"github.com/karmine05/agentic-detector/internal/homes"
 	"github.com/karmine05/agentic-detector/internal/ide"
 	"github.com/karmine05/agentic-detector/internal/instructions"
@@ -38,12 +40,12 @@ import (
 )
 
 // allKinds is the set of values the `kind` column can take.
-var allKinds = []string{"mcp_server", "ide_plugins", "agents", "apps", "sockets", "agent_instruction"}
+var allKinds = []string{"mcp_server", "ide_plugins", "agents", "apps", "sockets", "agent_instruction", "browser_extension"}
 
 // columns is the unified schema. Common fields are first-class; everything
 // kind-specific lives in `detail` (compact JSON, empty fields omitted).
 var columns = []string{
-	"kind",       // mcp_server | ide_plugins | agents | apps | sockets | agent_instruction
+	"kind",       // mcp_server | ide_plugins | agents | apps | sockets | agent_instruction | browser_extension
 	"name",       // server/plugin/agent/app/process/instruction-file name
 	"identifier", // plugin_id | bundle_id | mcp server name | agent binary | socket service
 	"category",   // classification bucket (coding-assistant, agent-runtime, ai-api-egress, ...)
@@ -149,6 +151,16 @@ func generate(ctx context.Context, qc table.QueryContext) ([]map[string]string, 
 			}
 			for _, in := range instructions.Scan(h) {
 				rows = append(rows, instructionRow(in))
+			}
+		}
+	}
+	if kinds["browser_extension"] {
+		for _, h := range hs {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			for _, e := range browserext.Scan(h) {
+				rows = append(rows, browserExtRow(e))
 			}
 		}
 	}
@@ -304,6 +316,64 @@ func instructionRow(in instructions.Instruction) map[string]string {
 		"size":    itoa(int(in.Size)),
 		"markers": in.Markers,
 	})
+}
+
+func browserExtRow(e browserext.Extension) map[string]string {
+	return row(map[string]string{
+		"kind":       "browser_extension",
+		"name":       e.Name,
+		"identifier": e.ID,
+		"category":   e.Category,
+		"location":   "local",
+		"source":     e.Browser,
+		"version":    e.Version,
+		"path":       e.Path,
+		"risk_flags": e.RiskFlags,
+		"sha256":     e.SHA256,
+		"uid":        e.UID,
+		"username":   e.Username,
+	}, map[string]string{
+		"browser":          e.Browser,
+		"profile":          e.Profile,
+		"engine":           e.Engine,
+		"manifest_version": itoa(e.ManifestVer),
+		"scope":            e.Scope,
+		"host_perms":       strings.Join(e.HostPerms, ","),
+		"from_webstore":    fromWebstoreStr(e.FromWebstore),
+		"signed_state":     signedStateStr(e.SignedState),
+	})
+}
+
+// fromWebstoreStr renders the tri-state webstore flag as a label so a "false"
+// value survives compactJSON (which drops "" and "0").
+func fromWebstoreStr(v int) string {
+	switch v {
+	case 1:
+		return "true"
+	case 0:
+		return "false"
+	default:
+		return "" // unknown
+	}
+}
+
+// signedStateStr renders a Gecko signedState int as a readable label (and ""
+// for the unknown sentinel), avoiding compactJSON dropping the meaningful 0.
+func signedStateStr(s int) string {
+	switch s {
+	case 2:
+		return "privileged"
+	case 1:
+		return "signed"
+	case 0:
+		return "missing"
+	case -1:
+		return "unknown"
+	case -2:
+		return "broken"
+	default:
+		return ""
+	}
 }
 
 func socketRow(s netsock.Socket) map[string]string {

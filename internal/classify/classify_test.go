@@ -78,3 +78,25 @@ func TestMCPCapabilities(t *testing.T) {
 		t.Errorf("unknown server should infer no capabilities, got %v", caps)
 	}
 }
+
+func TestBrowserExtension(t *testing.T) {
+	cases := []struct {
+		id, name string
+		wantAI   bool
+	}{
+		{"mfgnpcdebmgmmbjmhmboieiipghabkjf", "ChatGPT for Google", true},    // curated id
+		{"unknownidunknownidunknownidunkno", "Monica - AI Assistant", true}, // name fallback
+		{"unknownidunknownidunknownidunkno", "perplexity", true},            // name fallback
+		{"abcabcabcabcabcabcabcabcabcabcab", "Prettier", false},             // non-AI
+		{"hdokiejnpimakedhajhdlcegeplioahd", "LastPass", false},             // non-AI
+	}
+	for _, c := range cases {
+		ai, cat := BrowserExtension(c.id, c.name)
+		if ai != c.wantAI {
+			t.Errorf("BrowserExtension(%q,%q) ai=%v want %v (cat=%q)", c.id, c.name, ai, c.wantAI, cat)
+		}
+		if ai && cat == "" {
+			t.Errorf("BrowserExtension(%q,%q): AI ext has empty category", c.id, c.name)
+		}
+	}
+}

@@ -25,6 +25,7 @@ type knowledge struct {
 	CmdlineMarkers  map[string]string `json:"cmdline_markers"`
 	LocalPorts      map[string]string `json:"local_ports"`
 	MCPCapabilities map[string]string `json:"mcp_capabilities"`
+	BrowserExtIDs   map[string]string `json:"browser_extension_ids"`
 }
 
 var (
@@ -59,6 +60,15 @@ func JetBrainsPlugin(id, name string) (bool, string) {
 		return true, cat
 	}
 	return matchName(id + " " + name)
+}
+
+// BrowserExtension classifies a browser extension by its (lowercased) store id,
+// falling back to a name heuristic. Mirrors VSCodePlugin.
+func BrowserExtension(id, displayName string) (bool, string) {
+	if cat, ok := data.BrowserExtIDs[strings.ToLower(id)]; ok {
+		return true, cat
+	}
+	return matchName(strings.ToLower(id) + " " + displayName)
 }
 
 // ByName classifies any free-form name/id via the regex heuristics.
