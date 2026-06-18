@@ -4,3 +4,14 @@
 .DS_Store
 .claude-flow/
 .vscode/
+
+# RuFlo / claude-flow doctor artifacts
+claude-flow.config.json
+data/memory/
+.claude/memory.db
+ruvector.db
+
+agentdb*
+.planning*
+graphify*
+docs/*
