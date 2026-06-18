@@ -1,7 +1,7 @@
 // Package proc takes a single cross-platform snapshot of running processes and
 // network connections via gopsutil. One snapshot is shared across the
 // mcp_server correlation, agents/apps liveness checks, and the sockets
-// collector (all kinds of the unified ai_tools table) so the extension
+// collector (all types of the unified ai_tools table) so the extension
 // enumerates the process/connection tables only once per query.
 package proc
 

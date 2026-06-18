@@ -79,8 +79,8 @@ EXT_MAC := $(CURDIR)/$(BUILD)/$(BINARY)_macos.ext
 # reports "no such table". --extensions_timeout caps the wait.
 OSQ_FLAGS := --allow_unsafe --extension "$(EXT_MAC)" --extensions_require=agentic_detector --extensions_timeout=10
 
-# Shared one-shot sanity query — per-kind row + running counts.
-VERIFY_SQL := SELECT kind, count(*) AS rows, sum(running) AS running FROM ai_tools GROUP BY kind
+# Shared one-shot sanity query — per-type row + running counts.
+VERIFY_SQL := SELECT type, count(*) AS rows, sum(running) AS running FROM ai_tools GROUP BY type
 
 run: macos
 	osqueryi $(OSQ_FLAGS)

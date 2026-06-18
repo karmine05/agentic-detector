@@ -7,15 +7,15 @@ import (
 	"github.com/karmine05/agentic-detector/internal/browserext"
 )
 
-func TestBrowserExtKindRegistered(t *testing.T) {
+func TestBrowserExtTypeRegistered(t *testing.T) {
 	found := false
-	for _, k := range allKinds {
+	for _, k := range allTypes {
 		if k == "browser_extension" {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatal("browser_extension missing from allKinds")
+		t.Fatal("browser_extension missing from allTypes")
 	}
 }
 
@@ -31,7 +31,7 @@ func TestBrowserExtRow(t *testing.T) {
 	}
 	r := browserExtRow(e)
 
-	if r["kind"] != "browser_extension" || r["name"] != "Claude for Chrome" ||
+	if r["type"] != "browser_extension" || r["name"] != "Claude for Chrome" ||
 		r["identifier"] != "abcID" || r["source"] != "brave" ||
 		r["category"] != "ai-assistant" || r["location"] != "local" ||
 		r["risk_flags"] != "broad_host_permissions,sideloaded_unverified" ||

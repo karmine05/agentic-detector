@@ -18,13 +18,13 @@ discovered binary, and never connects to an MCP server to enumerate its tools
 
 ## The `ai_tools` table
 
-One table covers everything. A `kind` column discriminates the row type; common
-fields are first-class columns; kind-specific extras live in a compact JSON
+One table covers everything. A `type` column discriminates the row type; common
+fields are first-class columns; type-specific extras live in a compact JSON
 `detail` column. The extension emits one row per user **per host** —
 enumerating all home directories (`/Users/*`, `/home/*`+`/root`, `C:\Users\*`),
 not just the daemon account's.
 
-| `kind` | Row represents |
+| `type` | Row represents |
 |---|---|
 | `mcp_server` | An MCP server declared in any client config (Claude Desktop/Code, Cursor, Windsurf, VS Code, Zed, Cline, Roo, Continue) and/or a running MCP server process. |
 | `ide_plugins` | An installed editor plugin (VS Code family incl. Cursor/Windsurf/VSCodium/Trae/Antigravity/code-server, JetBrains, Zed, Sublime, Neovim/Vim, Emacs). |
@@ -36,11 +36,11 @@ not just the daemon account's.
 
 ### Columns
 
-`kind, name, identifier, category, location, source, version, path, endpoint, running, pid, port, risk_flags, sha256, uid, username, detail`
+`type, name, identifier, category, location, source, version, path, endpoint, running, pid, port, risk_flags, sha256, uid, username, detail`
 
 Every row is an AI tool by construction (collectors emit only AI/agent artifacts), so there is no `is_ai` column — presence in the table is the signal.
 
-| Column | Meaning (varies by kind) |
+| Column | Meaning (varies by type) |
 |---|---|
 | `name` | server / plugin / agent / app / process / instruction-file name |
 | `identifier` | mcp server name · `publisher.name` · agent binary · bundle id · socket service · instruction tool |
@@ -52,11 +52,11 @@ Every row is an AI tool by construction (collectors emit only AI/agent artifacts
 | `running`,`pid`,`port` | liveness; `port` = listening / api / local port |
 | `risk_flags` | comma-separated security risk tokens, `""` = none (see below) |
 | `sha256` | content hash of the primary artifact (MCP config, agent/app binary, instruction file) — a diffable identity for change detection and threat-intel matching |
-| `detail` | JSON of kind-specific extras (`transport`, `args`, `env_keys` (names only), `capabilities`, `launch_hash`, `permission_mode`, `markers`, `scope`, `size`, `publisher`, `editor_family`, `runtime`, `protocol`, `remote_host`, `cmdline`, …) |
+| `detail` | JSON of type-specific extras (`transport`, `args`, `env_keys` (names only), `capabilities`, `launch_hash`, `permission_mode`, `markers`, `scope`, `size`, `publisher`, `editor_family`, `runtime`, `protocol`, `remote_host`, `cmdline`, …) |
 
 #### `risk_flags` tokens
 
-| Token | Kind | Meaning |
+| Token | Type | Meaning |
 |---|---|---|
 | `remote_fetch_exec` | mcp_server | Launched via `npx`/`uvx`/`bunx`/`pnpx` — fetches and runs code at every start |
 | `unpinned_dependency` | mcp_server | …and that fetched package is unpinned / `@latest` (mutable supply chain) |
@@ -74,10 +74,10 @@ Every row is an AI tool by construction (collectors emit only AI/agent artifacts
 
 Capability inference is **static** (from the known-server KB): the extension never connects to an MCP server to enumerate live tools, because that would mean executing untrusted code.
 
-**Lightweight by design:** a query with `WHERE kind = '…'` (or `kind IN (…)`)
+**Lightweight by design:** a query with `WHERE type = '…'` (or `type IN (…)`)
 only runs the collectors it needs (constraint pushdown); the process/connection
 snapshot, home enumeration and config scan happen at most **once** per query and
-are shared across collectors; `kind = 'ide_plugins'` skips the process snapshot
+are shared across collectors; `type = 'ide_plugins'` skips the process snapshot
 entirely.
 
 ## Example queries
@@ -90,69 +90,69 @@ Run these in the `osquery>` shell (`make run`), or one-shot by passing the
 -- shell dot-commands (shell only, not one-shot):
 .tables ai_tools        -- confirm the table registered
 .schema ai_tools        -- list columns
-.mode line                      -- readable output for wide rows
+.mode line              -- readable output for wide rows
 
--- counts per kind
-SELECT kind, count(*) FROM ai_tools GROUP BY kind;
+-- counts per type
+SELECT type, count(*) FROM ai_tools GROUP BY type;
 
 -- everything on the host (every row is an AI tool)
-SELECT kind, name, category, running FROM ai_tools LIMIT 20;
+SELECT type, name, category, running FROM ai_tools LIMIT 20;
 
 -- outbound AI/MCP connections — where data is going
-SELECT name, endpoint FROM ai_tools WHERE kind = 'sockets' AND location = 'remote';
+SELECT name, endpoint FROM ai_tools WHERE type = 'sockets' AND location = 'remote';
 
 -- running MCP servers, local stdio vs remote
 SELECT name, source AS client, location, running, pid
-  FROM ai_tools WHERE kind = 'mcp_server' AND running = 1;
+  FROM ai_tools WHERE type = 'mcp_server' AND running = 1;
 
 -- AI editor plugins with versions
 SELECT name, identifier, version, category
-  FROM ai_tools WHERE kind = 'ide_plugins';
+  FROM ai_tools WHERE type = 'ide_plugins';
 
--- pull a kind-specific extra out of the JSON detail column
+-- pull a type-specific extra out of the JSON detail column
 SELECT name, json_extract(detail, '$.transport') AS transport, endpoint
-  FROM ai_tools WHERE kind = 'mcp_server';
+  FROM ai_tools WHERE type = 'mcp_server';
 
--- anything carrying a security risk flag, across every kind
-SELECT kind, name, risk_flags, path FROM ai_tools WHERE risk_flags != '';
+-- anything carrying a security risk flag, across every type
+SELECT type, name, risk_flags, path FROM ai_tools WHERE risk_flags != '';
 
 -- MCP servers that fetch unpinned remote code at launch (supply-chain risk)
 SELECT name, json_extract(detail, '$.command') AS cmd, json_extract(detail, '$.args') AS args
   FROM ai_tools
-  WHERE kind = 'mcp_server' AND risk_flags LIKE '%unpinned_dependency%';
+  WHERE type = 'mcp_server' AND risk_flags LIKE '%unpinned_dependency%';
 
 -- agents running unattended (auto-approve / skip-permissions)
 SELECT name, risk_flags, json_extract(detail, '$.permission_mode') AS mode
-  FROM ai_tools WHERE kind = 'agents' AND risk_flags != '';
+  FROM ai_tools WHERE type = 'agents' AND risk_flags != '';
 
 -- instruction files flagged for prompt injection or hidden unicode
 SELECT name, path, risk_flags, json_extract(detail, '$.markers') AS markers
-  FROM ai_tools WHERE kind = 'agent_instruction' AND risk_flags != '';
+  FROM ai_tools WHERE type = 'agent_instruction' AND risk_flags != '';
 
 -- AI browser extensions, with the browser and profile they live in
 SELECT name, source AS browser, category,
        json_extract(detail, '$.engine')  AS engine,
        json_extract(detail, '$.profile') AS profile, version
-  FROM ai_tools WHERE kind = 'browser_extension';
+  FROM ai_tools WHERE type = 'browser_extension';
 
 -- risky browser extensions: read-every-site host access or installed outside the store
 SELECT name, source AS browser, risk_flags,
        json_extract(detail, '$.from_webstore') AS from_webstore,
        json_extract(detail, '$.signed_state')  AS signed_state
   FROM ai_tools
-  WHERE kind = 'browser_extension' AND risk_flags != '';
+  WHERE type = 'browser_extension' AND risk_flags != '';
 ```
 
 `.tables`/`.schema`/`.mode` are osquery shell dot-commands — they only work
 inside the interactive shell, not as a one-shot query string. The `SELECT`s work
-both ways. Filtering on `kind` keeps queries cheap: only the matching collectors
+both ways. Filtering on `type` keeps queries cheap: only the matching collectors
 run (constraint pushdown).
 
 ## How detection works
 
 - **Browser extensions** — per-profile enumeration across Chromium (`Extensions/<id>/<version>/manifest.json` unioned with the profile's `Preferences`/`Secure Preferences` registry for install provenance and unpacked recovery) and Gecko (`extensions.json` + the `.xpi` archive). i18n (`__MSG_*`) names are resolved from `_locales`. Capability/permission risk is read statically from the manifest — no extension is loaded or executed.
 - **Config parsing** — JSON/YAML across every known MCP client; `command`⇒local, `url`/`serverUrl`⇒remote; VS Code's `servers` key vs everyone else's `mcpServers`; Zed's nested `command` object; per-project `.mcp.json`/`.cursor`/`.vscode`/`.roo` via a bounded walk of common dev roots.
-- **Process/connection snapshot** — one `gopsutil` snapshot per query feeds liveness (`running`/`pid`), listening-port fill, and the `sockets`-kind rows.
+- **Process/connection snapshot** — one `gopsutil` snapshot per query feeds liveness (`running`/`pid`), listening-port fill, and the `sockets`-type rows.
 - **Classification KB** — `internal/classify/kb.json` (embedded) maps known extension ids, process-cmdline markers, inference ports, and MCP-server capability tags to categories. Egress is attributed **process-first** (an AI/agent process's connections are AI traffic — caught by cmdline markers, not a hostname list) before any DNS heuristic; no brittle IP allowlists.
 - **Integrity fingerprints** — every MCP config, agent/app binary, and instruction file is SHA-256 hashed (`sha256` column) plus a `launch_hash` over each MCP server's command/args/url, so a SIEM can detect a changed binary or a silently-mutated launch vector (rug-pull) by diffing snapshots.
 - **Risk posture** — static, KB-driven flags surface supply-chain exposure (`remote_fetch_exec`/`unpinned_dependency`), inferred MCP capabilities (`mcp_shell_exec`/`mcp_fs_write`), plaintext secrets and world-readable configs, agent autonomy mode (`bypass_permissions`/`skip_permissions_runtime`), and prompt-injection markers / hidden unicode in instruction files. See [`risk_flags` tokens](#risk_flags-tokens).
@@ -198,7 +198,7 @@ gh release download v0.2.0 -R karmine05/agentic-detector -p 'agentic_detector_ma
 xattr -d com.apple.quarantine agentic_detector_macos.ext   # unsigned → clear quarantine
 osqueryi --allow_unsafe --extension "$PWD/agentic_detector_macos.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
-  "SELECT kind, count(*) FROM ai_tools GROUP BY kind"
+  "SELECT type, count(*) FROM ai_tools GROUP BY type"
 ```
 
 **Linux**:
@@ -208,7 +208,7 @@ gh release download v0.2.0 -R karmine05/agentic-detector -p 'agentic_detector_li
 chmod +x agentic_detector_linux.ext
 osqueryi --allow_unsafe --extension "$PWD/agentic_detector_linux.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
-  "SELECT kind, count(*) FROM ai_tools GROUP BY kind"
+  "SELECT type, count(*) FROM ai_tools GROUP BY type"
 ```
 
 **Windows** (PowerShell):
@@ -218,7 +218,7 @@ gh release download v0.2.0 -R karmine05/agentic-detector -p 'agentic_detector_wi
 Unblock-File agentic_detector_windows.ext.exe
 osqueryi.exe --allow_unsafe --extension "$PWD\agentic_detector_windows.ext.exe" `
   --extensions_require=agentic_detector --extensions_timeout=10 `
-  "SELECT kind, count(*) FROM ai_tools GROUP BY kind"
+  "SELECT type, count(*) FROM ai_tools GROUP BY type"
 ```
 
 Verify integrity before running:
@@ -329,23 +329,23 @@ auto-update server and autoloads them. (Fleet Premium.)
    ```
 
 3. Query like any built-in table (live query or scheduled query). Filtering on
-   `kind` keeps it cheap (only the needed collectors run):
+   `type` keeps it cheap (only the needed collectors run):
 
    ```sql
    -- remote MCP servers
    SELECT name, source, endpoint FROM ai_tools
-     WHERE kind = 'mcp_server' AND location = 'remote';
+     WHERE type = 'mcp_server' AND location = 'remote';
 
    -- AI editor plugins
    SELECT name, identifier, version, category FROM ai_tools
-     WHERE kind = 'ide_plugins';
+     WHERE type = 'ide_plugins';
 
    -- live AI/MCP egress + local inference listeners
    SELECT name, category, endpoint, port FROM ai_tools
-     WHERE kind = 'sockets';
+     WHERE type = 'sockets';
 
    -- everything on the host, one query (every row is an AI tool)
-   SELECT kind, name, category, running FROM ai_tools;
+   SELECT type, name, category, running FROM ai_tools;
    ```
 
 ## Local verification
@@ -365,7 +365,7 @@ Against a real osquery (requires `osqueryi` on PATH — `brew install --cask osq
 ```bash
 make run                 # interactive osquery> shell with the extension loaded
 make run-root            # same, as root (sees all users + all sockets, like fleetd)
-make osq-verify          # one-shot: row counts per kind (macOS, host-native)
+make osq-verify          # one-shot: row counts per type (macOS, host-native)
 make osq-verify-linux    # load the linux .ext: native osqueryi on Linux, else a linux/amd64 container
 make osq-verify-windows  # load the windows .ext.exe — Windows host only
 ```
@@ -393,7 +393,7 @@ Raw equivalent — note the two flags that matter:
 osqueryi --allow_unsafe \
   --extension "$PWD/build/agentic_detector_macos.ext" \
   --extensions_require=agentic_detector --extensions_timeout=10 \
-  "SELECT kind, name, category, running FROM ai_tools"
+  "SELECT type, name, category, running FROM ai_tools"
 ```
 
 - `--extensions_require=agentic_detector` — **required for one-shot queries**.
