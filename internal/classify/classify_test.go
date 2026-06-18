@@ -84,7 +84,7 @@ func TestBrowserExtension(t *testing.T) {
 		id, name string
 		wantAI   bool
 	}{
-		{"mfgnpcdebmgmmbjmhmboieiipghabkjf", "ChatGPT for Google", true}, // curated id
+		{"mfgnpcdebmgmmbjmhmboieiipghabkjf", "ChatGPT for Google", true},    // curated id
 		{"unknownidunknownidunknownidunkno", "Monica - AI Assistant", true}, // name fallback
 		{"unknownidunknownidunknownidunkno", "perplexity", true},            // name fallback
 		{"abcabcabcabcabcabcabcabcabcabcab", "Prettier", false},             // non-AI
