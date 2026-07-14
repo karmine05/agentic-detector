@@ -12,6 +12,13 @@ capabilities (shell-exec, fs-write), plaintext secrets in configs, agent
 autonomy mode (auto-approve / skip-permissions), and prompt-injection markers or
 hidden Unicode in instruction files.
 
+**Agent discovery is multi-signal**, not keyword-only. A shared evidence engine
+fuses tool homes (e.g. `~/.grok`, `~/.hermes`), binaries, package/framework
+fingerprints, workspace shape (skills + MCP + instruction packs), and live
+processes. Known catalog tools always emit; unknown CLIs, harnesses, and
+custom agents can still surface with a `confidence` score and `evidence` tokens.
+Name matching alone never creates a row.
+
 It is **detection-only** — read-only tables, no remediation. It never executes a
 discovered binary, and never connects to an MCP server to enumerate its tools
 (capability is inferred statically); files are read and hashed, never run.
@@ -28,7 +35,7 @@ not just the daemon account's.
 |---|---|
 | `mcp_server` | An MCP server declared in any client config (Claude Desktop/Code, Cursor, Windsurf, VS Code, Zed, Cline, Roo, Continue) and/or a running MCP server process. |
 | `ide_plugins` | An installed editor plugin (VS Code family incl. Cursor/Windsurf/VSCodium/Trae/Antigravity/code-server, JetBrains, Zed, Sublime, Neovim/Vim, Emacs). |
-| `agents` | An installed AI agent CLI (Claude Code, Gemini, Codex, aider, goose, opencode, Cline, Continue, cursor-agent, Amazon Q/Kiro). |
+| `agents` | An AI agent CLI or harness: catalog tools (Claude Code, Gemini, Codex, Grok, aider, goose, opencode, Cline, Continue, cursor-agent, Amazon Q/Kiro, …) plus multi-signal candidates (tool homes, frameworks, strong workspace shape — e.g. Hermes, OpenClaw-class, custom agents). |
 | `apps` | An installed AI desktop app (Claude Desktop, ChatGPT, Ollama, LM Studio, Jan, GPT4All, Msty, AnythingLLM, Perplexity, Cursor, Windsurf, Antigravity). |
 | `sockets` | A live AI/MCP network socket — local inference/MCP listener or outbound AI/MCP egress. |
 | `agent_instruction` | An agent instruction file the AI auto-loads and obeys (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.github/copilot-instructions.md`, Cursor `.mdc` rules, …) — a prompt-injection / agent-hijack surface. |
@@ -36,7 +43,7 @@ not just the daemon account's.
 
 ### Columns
 
-`type, name, identifier, category, location, source, version, path, endpoint, running, pid, port, risk_flags, sha256, uid, username, detail`
+`type, name, identifier, category, location, source, version, path, endpoint, running, pid, port, risk_flags, sha256, confidence, evidence, uid, username, detail`
 
 Every row is an AI tool by construction (collectors emit only AI/agent artifacts), so there is no `is_ai` column — presence in the table is the signal.
 
@@ -44,15 +51,33 @@ Every row is an AI tool by construction (collectors emit only AI/agent artifacts
 |---|---|
 | `name` | server / plugin / agent / app / process / instruction-file name |
 | `identifier` | mcp server name · `publisher.name` · agent binary · bundle id · socket service · instruction tool |
-| `category` | classification bucket (`coding-assistant`, `agent-runtime`, `inference-api-local`, `mcp-remote-egress`, `ai-api-egress`, `mcp-server`, `agent-instruction`, …) |
+| `category` | classification bucket (`coding-assistant`, `agent-runtime`, `agent-harness`, `inference-api-local`, `mcp-remote-egress`, `ai-api-egress`, `mcp-server`, `agent-instruction`, …) |
 | `location` | `local` or `remote` |
-| `source` | provenance: MCP client · editor · install method · platform source · socket direction · instruction tool |
+| `source` | provenance: MCP client · editor · install method · platform source · socket direction · instruction tool · `evidence` for multi-signal candidates |
 | `path` | config / install / binary / app / process / instruction-file path |
 | `endpoint` | remote MCP url, or socket remote `addr:port` |
 | `running`,`pid`,`port` | liveness; `port` = listening / api / local port |
 | `risk_flags` | comma-separated security risk tokens, `""` = none (see below) |
 | `sha256` | content hash of the primary artifact (MCP config, agent/app binary, instruction file) — a diffable identity for change detection and threat-intel matching |
-| `detail` | JSON of type-specific extras (`transport`, `args`, `env_keys` (names only), `capabilities`, `launch_hash`, `permission_mode`, `markers`, `scope`, `size`, `publisher`, `editor_family`, `runtime`, `protocol`, `remote_host`, `cmdline`, …) |
+| `confidence` | integer 0–100 multi-signal confidence (catalog / known tools = **100**; candidates lower) |
+| `evidence` | CSV of detection signals (e.g. `catalog,binary,running,tool_home` or `workspace_shape,mcp_config,instructions`) |
+| `detail` | JSON of type-specific extras (`transport`, `args`, `env_keys` (names only), `capabilities`, `launch_hash`, `permission_mode`, `markers`, `scope`, `size`, `publisher`, `editor_family`, `runtime`, `protocol`, `remote_host`, `cmdline`, `kind` = `catalog`\|`candidate`, …) |
+
+#### Confidence bands (agents)
+
+| Band | Range | Meaning |
+|---|---|---|
+| Known | 100 | Catalog / allowlisted agent CLI |
+| High | 70–99 | Multi-signal (e.g. tool home + binary + running) |
+| Medium | 40–69 | Strong workspace shape offline, or framework fingerprint alone |
+| Low (still emitted) | 30–39 | Borderline multi-signal |
+| Not emitted | — | Name-only, or a single weak marker (e.g. only `AGENTS.md`) |
+
+For a strict inventory of high-trust rows only:
+
+```sql
+SELECT name, type, confidence, evidence FROM ai_tools WHERE confidence >= 80;
+```
 
 #### `risk_flags` tokens
 
@@ -97,6 +122,24 @@ SELECT type, count(*) FROM ai_tools GROUP BY type;
 
 -- everything on the host (every row is an AI tool)
 SELECT type, name, category, running FROM ai_tools LIMIT 20;
+
+-- agent CLIs with multi-signal confidence (catalog + candidates)
+SELECT name, category, confidence, evidence, running, pid, path
+  FROM ai_tools WHERE type = 'agents' ORDER BY confidence DESC;
+
+-- Grok CLI (catalog + tool home + live process) — example live result shape:
+-- name=grok confidence=100 evidence=binary,catalog,running,tool_home,workspace_shape
+-- running=1 pid=<pid> path=/Users/<you>/.local/bin/grok
+SELECT name, category, confidence, evidence, running, pid, path
+  FROM ai_tools WHERE type = 'agents' AND name = 'grok';
+
+-- harnesses / multi-agent orchestrators (framework or strong workspace shape)
+SELECT name, path, confidence, evidence
+  FROM ai_tools WHERE type = 'agents' AND category = 'agent-harness';
+
+-- candidate / non-catalog agents only (shadow IT, custom agents)
+SELECT name, path, confidence, evidence
+  FROM ai_tools WHERE type = 'agents' AND confidence < 100;
 
 -- outbound AI/MCP connections — where data is going
 SELECT name, endpoint FROM ai_tools WHERE type = 'sockets' AND location = 'remote';
