@@ -5,13 +5,25 @@
 .claude-flow/
 .vscode/
 
+# AI-generated project and metadata files
+*.md
+CLAUDE.md
+AGENTS.md
+.claude/
+memory/
+*.rvf
+browser-sessions/
+.autopilot/
+.swarm/
+*.db
+.planning/*
+.claude-mem/*
+*graphify*
+
 # RuFlo / claude-flow doctor artifacts
 claude-flow.config.json
 data/memory/
-.claude/memory.db
 ruvector.db
 
 agentdb*
-.planning*
-graphify*
 docs/*
