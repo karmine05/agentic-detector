@@ -63,6 +63,40 @@ Every row is an AI tool by construction (collectors emit only AI/agent artifacts
 | `evidence` | CSV of detection signals (e.g. `catalog,binary,running,tool_home` or `workspace_shape,mcp_config,instructions`) |
 | `detail` | JSON of type-specific extras (`transport`, `args`, `env_keys` (names only), `capabilities`, `launch_hash`, `permission_mode`, `markers`, `scope`, `size`, `publisher`, `editor_family`, `runtime`, `protocol`, `remote_host`, `cmdline`, `kind` = `catalog`\|`candidate`, …) |
 
+#### Which columns apply to which type
+
+Common columns are shared field slots, but only some are populated per `type` —
+the rest are empty for that row. Type-specific data lives in `detail` instead.
+
+| Column | `mcp_server` | `ide_plugins` | `agents` | `apps` | `agent_instruction` | `browser_extension` | `sockets` |
+|---|---|---|---|---|---|---|---|
+| `name` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `identifier` | server name | plugin id | binary | bundle id | tool | extension id | service |
+| `category` | `mcp-server` | AI category | agent category | — | `agent-instruction` | ✓ | ✓ |
+| `location` | local/remote | `local` | `local` | `local` | `local` | `local` | local/remote |
+| `source` | client | editor | install method | platform source | tool | browser | direction |
+| `version` | — | ✓ | ✓ | ✓ | — | ✓ | — |
+| `path` | config path | install path | ✓ | ✓ | ✓ | ✓ | process path |
+| `endpoint` | remote URL | — | — | — | — | — | remote `addr:port` |
+| `running`, `pid` | ✓ | — | ✓ | ✓ | — | — | ✓ |
+| `port` | listening port | — | — | API port | — | — | local port |
+| `risk_flags` | ✓ | — | ✓ | — | ✓ | ✓ | — |
+| `sha256` | ✓ | — | ✓ | ✓ | ✓ | ✓ | — |
+| `confidence`, `evidence` | — | — | ✓ | — | — | — | — |
+| `uid`, `username` | ✓ | ✓ | ✓ | — | ✓ | ✓ | username only |
+
+`detail` keys per type:
+
+| Type | `detail` keys |
+|---|---|
+| `mcp_server` | `transport`, `command`, `args`, `env_keys`, `scope`, `source_type`, `enabled`, `capabilities`, `launch_hash` |
+| `ide_plugins` | `editor_family`, `publisher`, `manifest_path` |
+| `agents` | `runtime`, `binary`, `binary_path`, `permission_mode`, `kind` (`catalog`\|`candidate`) |
+| `apps` | `vendor`, `bundle_id`, `scope`, `serves_local_api` |
+| `agent_instruction` | `scope`, `size`, `markers` |
+| `browser_extension` | `browser`, `profile`, `engine`, `manifest_version`, `scope`, `host_perms`, `from_webstore`, `signed_state` |
+| `sockets` | `protocol`, `local_address`, `remote_host`, `service`, `cmdline` |
+
 #### Confidence bands (agents)
 
 | Band | Range | Meaning |
