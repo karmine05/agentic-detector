@@ -33,7 +33,7 @@ not just the daemon account's.
 
 | `type` | Row represents |
 |---|---|
-| `mcp_server` | An MCP server declared in any client config (Claude Desktop/Code, Cursor, Windsurf, VS Code, Zed, Cline, Roo, Continue) and/or a running MCP server process. |
+| `mcp_server` | An MCP server declared in any client config (Claude Desktop/Code, Cursor, Windsurf, VS Code, Zed, Cline, Roo, Continue, Hermes, OpenClaw, Grok, Codex, Jan, Gemini/Antigravity) and/or a running MCP server process. |
 | `ide_plugins` | An installed editor plugin (VS Code family incl. Cursor/Windsurf/VSCodium/Trae/Antigravity/code-server, JetBrains, Zed, Sublime, Neovim/Vim, Emacs). |
 | `agents` | An AI agent CLI or harness: catalog tools (Claude Code, Gemini, Codex, Grok, aider, goose, opencode, Cline, Continue, cursor-agent, Amazon Q/Kiro, …) plus multi-signal candidates (tool homes, frameworks, strong workspace shape — e.g. Hermes, OpenClaw-class, custom agents). |
 | `apps` | An installed AI desktop app (Claude Desktop, ChatGPT, Ollama, LM Studio, Jan, GPT4All, Msty, AnythingLLM, Perplexity, Cursor, Windsurf, Antigravity). |
@@ -228,7 +228,7 @@ run (constraint pushdown).
 ## How detection works
 
 - **Browser extensions** — per-profile enumeration across Chromium (`Extensions/<id>/<version>/manifest.json` unioned with the profile's `Preferences`/`Secure Preferences` registry for install provenance and unpacked recovery) and Gecko (`extensions.json` + the `.xpi` archive). i18n (`__MSG_*`) names are resolved from `_locales`. Capability/permission risk is read statically from the manifest — no extension is loaded or executed.
-- **Config parsing** — JSON/YAML across every known MCP client; `command`⇒local, `url`/`serverUrl`⇒remote; VS Code's `servers` key vs everyone else's `mcpServers`; Zed's nested `command` object; per-project `.mcp.json`/`.cursor`/`.vscode`/`.roo` via a bounded walk of common dev roots.
+- **Config parsing** — JSON/YAML/TOML across every known MCP client; `command`⇒local, `url`/`serverUrl`⇒remote; VS Code's `servers` key vs everyone else's `mcpServers`; Hermes/Grok/Codex `mcp_servers` (YAML/TOML); OpenClaw nested `mcp.servers`; Zed's nested `command` object; Jan/Gemini mcp_config.json; per-project `.mcp.json`/`.cursor`/`.vscode`/`.roo` via a bounded walk of common dev roots.
 - **Process/connection snapshot** — one `gopsutil` snapshot per query feeds liveness (`running`/`pid`), listening-port fill, and the `sockets`-type rows.
 - **Classification KB** — `internal/classify/kb.json` (embedded) maps known extension ids, process-cmdline markers, inference ports, and MCP-server capability tags to categories. Egress is attributed **process-first** (an AI/agent process's connections are AI traffic — caught by cmdline markers, not a hostname list) before any DNS heuristic; no brittle IP allowlists.
 - **Integrity fingerprints** — every MCP config, agent/app binary, and instruction file is SHA-256 hashed (`sha256` column) plus a `launch_hash` over each MCP server's command/args/url, so a SIEM can detect a changed binary or a silently-mutated launch vector (rug-pull) by diffing snapshots.

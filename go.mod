@@ -4,6 +4,7 @@ go 1.26.4
 
 require (
 	github.com/osquery/osquery-go v0.0.0-20260508130258-3e773449a5d4
+	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/shirou/gopsutil/v4 v4.26.5
 	golang.org/x/sys v0.44.0
 	gopkg.in/yaml.v3 v3.0.1
