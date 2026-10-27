@@ -80,7 +80,7 @@ the rest are empty for that row. Type-specific data lives in `detail` instead.
 | `endpoint` | remote URL | — | — | — | — | — | remote `addr:port` |
 | `running`, `pid` | ✓ | — | ✓ | ✓ | — | — | ✓ |
 | `port` | listening port | — | — | API port | — | — | local port |
-| `risk_flags` | ✓ | — | ✓ | — | ✓ | ✓ | — |
+| `risk_flags` | ✓ | — | ✓ | — | ✓ | ✓ | ✓ |
 | `sha256` | ✓ | — | ✓ | ✓ | ✓ | ✓ | — |
 | `confidence`, `evidence` | — | — | ✓ | — | — | — | — |
 | `uid`, `username` | ✓ | ✓ | ✓ | — | ✓ | ✓ | username only |
@@ -129,6 +129,7 @@ SELECT name, type, confidence, evidence FROM ai_tools WHERE confidence >= 80;
 | `hidden_unicode` | agent_instruction | Contains zero-width / Unicode-tag characters used to smuggle instructions |
 | `world_writable` | agent_instruction | File is world-writable — any local user can hijack the agent |
 | `broad_host_permissions` | browser_extension | Manifest grants `<all_urls>` / `*://*/*` host access — can read/modify every site (AI exfiltration surface) |
+| `non_loopback_listener` | sockets | A TCP MCP or inference API listener is bound to a wildcard (`0.0.0.0`, `::`, lsof's `*`) or a non-loopback interface. This reports the bind, not reachability: a host firewall may still block it. Docker-published ports are covered only when the port is a known local inference port (`local_ports` in the KB); UDP listeners are not classified. Ollama, for example, has no built-in auth, so `OLLAMA_HOST=0.0.0.0` exposes every model to the network |
 | `sideloaded_unverified` | browser_extension | Installed outside the store (Chromium: not `from_webstore` / unpacked / policy-forced; Gecko: unsigned/temporary or `foreignInstall`) — no store review |
 
 Capability inference is **static** (from the known-server KB): the extension never connects to an MCP server to enumerate live tools, because that would mean executing untrusted code.
@@ -232,7 +233,7 @@ run (constraint pushdown).
 - **Process/connection snapshot** — one `gopsutil` snapshot per query feeds liveness (`running`/`pid`), listening-port fill, and the `sockets`-type rows.
 - **Classification KB** — `internal/classify/kb.json` (embedded) maps known extension ids, process-cmdline markers, inference ports, and MCP-server capability tags to categories. Egress is attributed **process-first** (an AI/agent process's connections are AI traffic — caught by cmdline markers, not a hostname list) before any DNS heuristic; no brittle IP allowlists.
 - **Integrity fingerprints** — every MCP config, agent/app binary, and instruction file is SHA-256 hashed (`sha256` column) plus a `launch_hash` over each MCP server's command/args/url, so a SIEM can detect a changed binary or a silently-mutated launch vector (rug-pull) by diffing snapshots.
-- **Risk posture** — static, KB-driven flags surface supply-chain exposure (`remote_fetch_exec`/`unpinned_dependency`), inferred MCP capabilities (`mcp_shell_exec`/`mcp_fs_write`), plaintext secrets and world-readable configs, agent autonomy mode (`bypass_permissions`/`skip_permissions_runtime`), and prompt-injection markers / hidden unicode in instruction files. See [`risk_flags` tokens](#risk_flags-tokens).
+- **Risk posture** — static, KB-driven flags surface supply-chain exposure (`remote_fetch_exec`/`unpinned_dependency`), inferred MCP capabilities (`mcp_shell_exec`/`mcp_fs_write`), plaintext secrets and world-readable configs, agent autonomy mode (`bypass_permissions`/`skip_permissions_runtime`), MCP/inference listeners bound beyond loopback (`non_loopback_listener`), and prompt-injection markers / hidden unicode in instruction files. See [`risk_flags` tokens](#risk_flags-tokens).
 - **No execution** — files are read, hashed, and parsed but never interpreted or run; MCP capability is *inferred* from the known-server KB rather than enumerated by connecting, preserving the extension's no-exec posture even when running as root.
 
 ## Build

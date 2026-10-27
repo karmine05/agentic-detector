@@ -28,6 +28,7 @@ type Socket struct {
 	RemoteHost                                  string
 	Service                                     string
 	Category                                    string // mcp-server-local | inference-api-local | mcp-remote-egress | ai-api-egress | agent-runtime
+	RiskFlags                                   string // non_loopback_listener
 }
 
 type hostInfo struct {
@@ -62,6 +63,7 @@ func Collect(ctx context.Context, snap *proc.Snapshot, remoteMCPHosts map[string
 		case strings.EqualFold(c.Status, "LISTEN"):
 			sock.Direction = "listen"
 			classifyListen(&sock)
+			sock.RiskFlags = listenRisk(sock)
 		case strings.EqualFold(c.Status, "ESTABLISHED") || (c.RemotePort != 0 && c.RemoteIP != ""):
 			sock.Direction = "established"
 			classifyEstablished(&sock, hosts)
@@ -120,6 +122,35 @@ func classifyEstablished(s *Socket, hosts map[string]hostInfo) {
 	if hi, ok := hosts[strings.ToLower(s.RemoteAddress)]; ok {
 		s.Category, s.Service, s.RemoteHost = hi.category, hi.service, hi.service
 	}
+}
+
+// listenRisk returns the comma-separated risk tokens for a classified
+// listener. Only MCP and inference API listeners are flagged: agent-runtime is
+// matched by process name alone, so its ports are not known to be AI APIs.
+func listenRisk(s Socket) string {
+	var flags []string
+	if (s.Category == "mcp-server-local" || s.Category == "inference-api-local") && isNonLoopbackBind(s.LocalAddress) {
+		flags = append(flags, "non_loopback_listener")
+	}
+	return strings.Join(flags, ",")
+}
+
+// isNonLoopbackBind reports whether a listener's local address accepts
+// connections from other hosts: a wildcard bind (0.0.0.0, ::, or lsof's "*",
+// which is also what a Docker-published port looks like on the host) or a
+// specific non-loopback interface. An empty address is unknown, not exposed.
+func isNonLoopbackBind(addr string) bool {
+	addr = strings.Trim(strings.TrimSpace(addr), "[]")
+	switch strings.ToLower(addr) {
+	case "":
+		return false
+	case "*":
+		return true
+	case "localhost":
+		return false
+	}
+	parsed := net.ParseIP(addr)
+	return parsed != nil && !parsed.IsLoopback()
 }
 
 func isLoopback(ip string) bool {

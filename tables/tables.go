@@ -425,6 +425,7 @@ func socketRow(s netsock.Socket) map[string]string {
 		"running":    "1",
 		"pid":        itoa(s.PID),
 		"port":       itoa(s.LocalPort),
+		"risk_flags": s.RiskFlags,
 		"username":   s.Username,
 	}, map[string]string{
 		"protocol":      s.Protocol,
